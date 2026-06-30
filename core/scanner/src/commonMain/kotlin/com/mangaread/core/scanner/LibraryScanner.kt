@@ -7,26 +7,27 @@ import com.mangaread.core.domain.deterministicId
 import com.mangaread.core.domain.normalizeSortTitle
 import com.mangaread.core.source.MangaSource
 import com.mangaread.core.source.SourceEntry
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
-data class ScanResult(val series: List<Series>, val chapters: List<Chapter>)
+/** One scanned series and its chapters, emitted as the scan progresses. */
+data class ScannedSeries(val series: Series, val chapters: List<Chapter>)
 
 /**
- * Walks a library root via [MangaSource.list] and produces domain Series + Chapter rows
- * with deterministic IDs (PLAN.md §5). Pure orchestration — platform file access lives behind
- * the source. Layout convention:
- *   <root>/<Series>/<Chapter dir of images>      → IMAGE_DIR chapter
- *   <root>/<Series>/<Chapter>.cbz                 → CBZ chapter
- *   <root>/<Series>/<images directly>             → one IMAGE_DIR chapter (the series folder)
+ * Walks a library root via [MangaSource.list] and EMITS one [ScannedSeries] per top-level
+ * folder as it goes (PLAN.md §5), so a large library can be persisted incrementally and the
+ * UI fills in live instead of waiting for the whole tree. Deterministic IDs make re-scans
+ * reconcile. Layout convention:
+ *   <root>/<Series>/<Chapter dir of images>   → IMAGE_DIR chapter
+ *   <root>/<Series>/<Chapter>.cbz             → CBZ chapter
+ *   <root>/<Series>/<images directly>         → one IMAGE_DIR chapter (the series folder)
  */
 class LibraryScanner(private val source: MangaSource) {
 
-    suspend fun scan(rootLocator: String, now: Long): ScanResult {
-        val series = mutableListOf<Series>()
-        val chapters = mutableListOf<Chapter>()
-
+    fun scan(rootLocator: String, now: Long): Flow<ScannedSeries> = flow {
         for (dir in source.list(rootLocator).filter { it.isDirectory }) {
             val seriesId = deterministicId(source.id, dir.locator)
-            series += Series(
+            val series = Series(
                 id = seriesId,
                 title = dir.name,
                 sortTitle = normalizeSortTitle(dir.name),
@@ -38,12 +39,12 @@ class LibraryScanner(private val source: MangaSource) {
             val chapterEntries = children.filter { it.isDirectory || it.name.isCbz() }
             val directImages = children.count { !it.isDirectory && it.name.isImage() }
 
-            if (chapterEntries.isEmpty() && directImages > 0) {
-                // The series folder itself is a single image chapter.
-                chapters += imageDirChapter(seriesId, dir, dir.name, directImages, now)
-            } else {
-                for (entry in chapterEntries) {
-                    chapters += if (entry.isDirectory) {
+            val chapters = when {
+                chapterEntries.isEmpty() && directImages > 0 ->
+                    listOf(imageDirChapter(seriesId, dir, dir.name, directImages, now))
+
+                else -> chapterEntries.map { entry ->
+                    if (entry.isDirectory) {
                         val pages = source.list(entry.locator).count { it.name.isImage() }
                         imageDirChapter(seriesId, entry, entry.name, pages, now)
                     } else {
@@ -51,8 +52,8 @@ class LibraryScanner(private val source: MangaSource) {
                     }
                 }
             }
+            emit(ScannedSeries(series, chapters))
         }
-        return ScanResult(series, chapters)
     }
 
     private fun imageDirChapter(seriesId: String, e: SourceEntry, name: String, pages: Int, now: Long): Chapter {

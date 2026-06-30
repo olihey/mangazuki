@@ -19,25 +19,27 @@ class LibraryRepository(db: MangaDatabase) {
     fun observeSeries(): Flow<List<DomainSeries>> =
         q.selectAllSeries().asFlow().mapToList(ioDispatcher).map { rows -> rows.map(::toDomain) }
 
-    /** Idempotent: upserts on deterministic IDs, so re-scans reconcile (PLAN.md §5). */
-    suspend fun persistScan(series: List<DomainSeries>, chapters: List<DomainChapter>) =
+    /**
+     * Persist one series and its chapters in a single transaction. Idempotent: upserts on
+     * deterministic IDs, so re-scans reconcile rather than duplicate (PLAN.md §5). Called once
+     * per series during a scan so the library fills in incrementally.
+     */
+    suspend fun persistSeries(series: DomainSeries, chapters: List<DomainChapter>) =
         withContext(ioDispatcher) {
             q.transaction {
-                series.forEach { s ->
-                    q.upsertSeries(
-                        id = s.id,
-                        title = s.title,
-                        sort_title = s.sortTitle,
-                        author = s.author,
-                        description = s.description,
-                        cover_path = s.coverPath,
-                        start_year = s.startYear?.toLong(),
-                        reading_direction = s.readingDirection?.name,
-                        external_id = s.externalId,
-                        date_added = s.dateAdded,
-                        last_scanned = s.lastScanned,
-                    )
-                }
+                q.upsertSeries(
+                    id = series.id,
+                    title = series.title,
+                    sort_title = series.sortTitle,
+                    author = series.author,
+                    description = series.description,
+                    cover_path = series.coverPath,
+                    start_year = series.startYear?.toLong(),
+                    reading_direction = series.readingDirection?.name,
+                    external_id = series.externalId,
+                    date_added = series.dateAdded,
+                    last_scanned = series.lastScanned,
+                )
                 chapters.forEach { c ->
                     q.upsertChapter(
                         id = c.id,

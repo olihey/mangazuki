@@ -9,7 +9,7 @@ import androidx.compose.runtime.getValue
 fun App(viewModel: LibraryViewModel, onPickFolder: () -> Unit) {
     MaterialTheme {
         val series by viewModel.series.collectAsState()
-        val scanning by viewModel.scanning.collectAsState()
-        LibraryScreen(series = series, scanning = scanning, onPickFolder = onPickFolder)
+        val progress by viewModel.progress.collectAsState()
+        LibraryScreen(series = series, progress = progress, onPickFolder = onPickFolder)
     }
 }

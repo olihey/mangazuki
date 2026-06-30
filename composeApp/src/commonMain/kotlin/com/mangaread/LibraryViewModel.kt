@@ -13,10 +13,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** null when idle; non-null with running counts while a scan is in progress. */
+data class ScanProgress(val seriesFound: Int, val chaptersFound: Int)
+
 /**
- * Phase 1 spine: observe the library reactively from the DB, and run a scan that upserts
- * into it. Plain class (not androidx.ViewModel) so it stays in commonMain; the SAF folder
- * pick is supplied by the platform layer.
+ * Phase 1 spine: observe the library reactively from the DB, and run a scan that persists
+ * each series as it's found so the list fills in live (important for large collections).
+ * Plain class (not androidx.ViewModel) so it stays in commonMain; the SAF folder pick is
+ * supplied by the platform layer.
  */
 class LibraryViewModel(
     private val repository: LibraryRepository,
@@ -26,17 +30,23 @@ class LibraryViewModel(
     val series: StateFlow<List<Series>> =
         repository.observeSeries().stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _scanning = MutableStateFlow(false)
-    val scanning: StateFlow<Boolean> = _scanning
+    private val _progress = MutableStateFlow<ScanProgress?>(null)
+    val progress: StateFlow<ScanProgress?> = _progress
 
     fun scan(rootLocator: String) {
         scope.launch {
-            _scanning.value = true
+            var seriesCount = 0
+            var chapterCount = 0
+            _progress.value = ScanProgress(0, 0)
             try {
-                val result = scanner.scan(rootLocator, nowEpochMillis())
-                repository.persistScan(result.series, result.chapters)
+                scanner.scan(rootLocator, nowEpochMillis()).collect { scanned ->
+                    repository.persistSeries(scanned.series, scanned.chapters)
+                    seriesCount++
+                    chapterCount += scanned.chapters.size
+                    _progress.value = ScanProgress(seriesCount, chapterCount)
+                }
             } finally {
-                _scanning.value = false
+                _progress.value = null
             }
         }
     }

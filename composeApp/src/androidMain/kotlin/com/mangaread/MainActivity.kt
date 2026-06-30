@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
 
         pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             if (uri != null) {
+                android.util.Log.i("MangaScan", "picked folder: $uri")
                 contentResolver.takePersistableUriPermission(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION,

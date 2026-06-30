@@ -192,7 +192,7 @@ private fun CoverPlaceholder(title: String, modifier: Modifier = Modifier, model
         Text(title.trim().take(1).uppercase(), style = MaterialTheme.typography.titleLarge)
         if (model != null) {
             AsyncImage(
-                model = model,
+                model = MangaCover(model),
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize(),

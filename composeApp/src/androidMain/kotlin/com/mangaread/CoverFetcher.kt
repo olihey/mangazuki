@@ -30,16 +30,21 @@ class CoverFetcher(
 
     override suspend fun fetch(): FetchResult {
         val locator = data.substringAfter(':')
-        val bytes: BufferedSource = when {
-            data.startsWith("cbz:") -> firstCbzImage(locator)
-            data.startsWith("imgdir:") -> firstFolderImage(locator)
-            else -> error("unsupported cover model: $data")
+        try {
+            val bytes: BufferedSource = when {
+                data.startsWith("cbz:") -> firstCbzImage(locator)
+                data.startsWith("imgdir:") -> firstFolderImage(locator)
+                else -> error("unsupported cover model: $data")
+            }
+            return SourceFetchResult(
+                source = ImageSource(bytes, FileSystem.SYSTEM),
+                mimeType = null,
+                dataSource = DataSource.DISK,
+            )
+        } catch (t: Throwable) {
+            android.util.Log.e("CoverFetcher", "FAIL $data : ${t.message}", t)
+            throw t
         }
-        return SourceFetchResult(
-            source = ImageSource(bytes, FileSystem.SYSTEM),
-            mimeType = null,
-            dataSource = DataSource.DISK,
-        )
     }
 
     private suspend fun firstFolderImage(dirLocator: String): BufferedSource {
@@ -70,13 +75,9 @@ class CoverFetcher(
     class Factory(
         private val context: Context,
         private val source: SafMangaSource,
-    ) : Fetcher.Factory<String> {
-        override fun create(data: String, options: Options, imageLoader: ImageLoader): Fetcher? =
-            if (data.startsWith("cbz:") || data.startsWith("imgdir:")) {
-                CoverFetcher(data, context, source)
-            } else {
-                null // let Coil handle real URLs/paths (e.g. a cached cover file)
-            }
+    ) : Fetcher.Factory<MangaCover> {
+        override fun create(data: MangaCover, options: Options, imageLoader: ImageLoader): Fetcher =
+            CoverFetcher(data.model, context, source)
     }
 }
 

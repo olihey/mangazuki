@@ -25,7 +25,8 @@ data class ScannedSeries(val series: Series, val chapters: List<Chapter>)
 class LibraryScanner(private val source: MangaSource) {
 
     fun scan(rootLocator: String, now: Long): Flow<ScannedSeries> = flow {
-        for (dir in source.list(rootLocator).filter { it.isDirectory }) {
+        // Skip hidden folders (e.g. Resilio's ".sync", ".thumbnails").
+        for (dir in source.list(rootLocator).filter { it.isDirectory && !it.name.startsWith(".") }) {
             val seriesId = deterministicId(source.id, dir.locator)
             val series = Series(
                 id = seriesId,

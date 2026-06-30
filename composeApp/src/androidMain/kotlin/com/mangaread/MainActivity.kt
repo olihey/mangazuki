@@ -16,6 +16,8 @@ import com.mangaread.core.scanner.LibraryScanner
 import com.russhwolf.settings.SharedPreferencesSettings
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.key.Keyer
+import coil3.request.Options
 
 class MainActivity : ComponentActivity() {
 
@@ -28,7 +30,10 @@ class MainActivity : ComponentActivity() {
         val source = SafMangaSource(applicationContext)
         SingletonImageLoader.setSafe { ctx ->
             ImageLoader.Builder(ctx)
-                .components { add(CoverFetcher.Factory(applicationContext, source)) }
+                .components {
+                    add(Keyer<MangaCover> { cover, _: Options -> cover.model })
+                    add(CoverFetcher.Factory(applicationContext, source))
+                }
                 .build()
         }
 

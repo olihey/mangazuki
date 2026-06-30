@@ -1,14 +1,42 @@
 package com.mangaread
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import com.mangaread.core.data.LibraryRepository
+import com.mangaread.core.data.DatabaseDriverFactory
+import com.mangaread.core.data.createMangaDatabase
+import com.mangaread.core.scanner.LibraryScanner
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var viewModel: LibraryViewModel
+    private lateinit var pickFolder: ActivityResultLauncher<Uri?>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val database = createMangaDatabase(DatabaseDriverFactory(applicationContext).create())
+        val repository = LibraryRepository(database)
+        val scanner = LibraryScanner(SafMangaSource(applicationContext))
+        viewModel = LibraryViewModel(repository, scanner)
+
+        pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+                viewModel.scan(uri.toString())
+            }
+        }
+
         enableEdgeToEdge()
-        setContent { App() }
+        setContent { App(viewModel) { pickFolder.launch(null) } }
     }
 }

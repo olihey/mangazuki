@@ -38,10 +38,12 @@ kotlin {
             implementation(libs.cmp.navigation.compose)
             implementation(libs.cmp.lifecycle.viewmodel.compose)
             implementation(libs.multiplatform.settings)
+            implementation(libs.kotlinx.coroutines.core)
         }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.androidx.documentfile)
         }
     }
 }

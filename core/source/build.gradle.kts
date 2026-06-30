@@ -11,9 +11,11 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":core:domain"))
+            // okio.Source and domain SourceCapability appear in MangaSource's public API,
+            // so expose them with `api` — consumers implementing MangaSource need them.
+            api(project(":core:domain"))
+            api(libs.okio)
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.okio)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

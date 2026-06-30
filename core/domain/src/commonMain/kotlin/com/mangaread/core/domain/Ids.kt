@@ -26,5 +26,17 @@ fun deterministicId(sourceId: String, rawLocator: String): String {
 fun normalizeLocator(raw: String): String =
     normalizeNfc(raw).replace('\\', '/').trim()
 
-/** Platform NFC normalization. JVM uses java.text.Normalizer; iOS actual stubbed until bring-up. */
+/** Platform NFC normalization. JVM uses java.text.Normalizer; iOS uses precomposed mapping. */
 expect fun normalizeNfc(input: String): String
+
+/**
+ * Sync fallback key normalization (PLAN.md §10) — FROZEN:
+ *   NFC → lowercase → strip punctuation → collapse whitespace → trim.
+ * Both devices must compute this identically or the unmatched-title sync key won't match.
+ */
+fun normalizeSortTitle(raw: String): String =
+    normalizeNfc(raw)
+        .lowercase()
+        .replace(Regex("[^\\p{L}\\p{N}\\s]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()

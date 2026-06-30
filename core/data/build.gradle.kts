@@ -27,6 +27,11 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        // Android unit tests run on the JVM — use the in-memory JDBC SQLite driver there
+        // to exercise the real schema + upsert reconcile (PLAN.md §14).
+        getByName("androidUnitTest").dependencies {
+            implementation(libs.sqldelight.sqlite.driver)
+        }
     }
 }
 

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -377,7 +378,7 @@ private fun ContinuousReader(
                     userScrollEnabled = !isZoomedIn(scale),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(columnHeight)
+                        .requiredHeight(columnHeight)
                         .graphicsLayer(
                             scaleX = scale,
                             scaleY = scale,

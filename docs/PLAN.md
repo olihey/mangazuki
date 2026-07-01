@@ -329,7 +329,14 @@ retroactively compose more to fill the freed-up space. Fixed by wrapping the col
 `BoxWithConstraints` and, whenever `scale < 1f`, giving it a taller-than-viewport height
 (`maxHeight / scale`) so it composes more of the strip; scaling that taller render back down by
 `scale` lands exactly flush with the physical viewport (`(maxHeight/scale) * scale == maxHeight`),
-so the strip always runs top-to-bottom with no gap. Zoom-in isn't affected — there's always "more"
+so the strip always runs top-to-bottom with no gap. This requires `Modifier.requiredHeight`, not
+plain `height` — `height` still coerces to the incoming (viewport-sized) constraints from the
+parent `BoxWithConstraints`, silently capping the column back to `maxHeight` and defeating the
+whole trick; only `requiredHeight` actually lets the column measure taller than its parent so
+there's real content to reveal. (An earlier version used plain `height` and looked like it built,
+but the column was never actually taller — combined with pinning `translationY` to `0f`, that bug
+showed as the strip always anchored to the top of the screen with *all* of the leftover gap
+dumped at the bottom, instead of the gap disappearing.) Zoom-in isn't affected — there's always "more"
 to shrink toward there, never less, so the plain `graphicsLayer` scale-down was never a problem in
 that direction. (Horizontal letterboxing when zoomed out is left as-is — only the vertical gap
 was ever visible as a problem, since the column is already `fillMaxWidth`.) It does

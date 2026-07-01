@@ -343,7 +343,20 @@ nothing was ever inflated. Zoom-in isn't affected — there's always "more" to s
 (the column is already fully composed at 1×), never less, so a plain `graphicsLayer` scale-down
 has always been fine in that direction. (Horizontal letterboxing when zoomed out is left as-is —
 each shrunk page is centered in its row via a `Box(contentAlignment = Alignment.Center)` wrapper —
-since only the vertical gap was ever reported as a problem.) It does
+since only the vertical gap was ever reported as a problem.)
+
+Shrinking pages introduced its own drift bug, though: a `LazyColumn`'s scroll position is an
+(item index, raw pixel offset) pair, and Compose's remeasure preserves that *raw offset* verbatim
+across a resize — it has no notion that "the item shrank," so the same pixel offset silently
+represents a bigger fraction of the now-smaller item, walking the effective scroll position
+forward with every pinch update. Zoom-in never has this problem (it only pans within
+already-composed content via `graphicsLayer`, never touching the column's own scroll), so the
+practical symptom was that the pinch centroid visibly slid upward on zoom-out but stayed put on
+zoom-in. Fixed by having `Zoomable` report every raw scale transition (`onScaleChange`, not just
+the final `scale` value) to `ContinuousReader`, which recomputes the exact `(index, offset)` pair
+that keeps the *intrinsic* (scale = 1) content point under the centroid fixed — using its own
+prefix-sum of each page's natural pixel height from `pageAspectRatios` — and jumps `listState`
+straight there via `scrollToItem`, rather than trusting Compose's raw-pixel preservation. It does
 share the next-chapter transition:
 scrolling past the last page reaches a `NextChapterPreview` list item sized to exactly one
 viewport (`fillParentMaxSize`), so scrolling it fully into view is simultaneously hitting the

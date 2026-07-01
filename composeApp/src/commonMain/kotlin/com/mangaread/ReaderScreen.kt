@@ -65,6 +65,7 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
@@ -343,69 +344,115 @@ private fun ContinuousReader(
         // Zoom wraps the whole LazyColumn (not each page individually) so pinching scales the
         // entire visible strip as one seamless unit, matching how the continuous scroll itself
         // treats every page as part of one long image rather than separate slides.
-        Zoomable(
-            key = Unit,
-            onZoomChanged = {},
-            onGesture = { hasInteracted = true },
-            modifier = Modifier.fillMaxSize(),
-            tapGestures = { currentScale, applyZoom, resetZoom ->
-                detectTapGestures(
-                    onDoubleTap = { pos ->
-                        hasInteracted = true
-                        if (isZoomed(currentScale())) resetZoom() else applyZoom(2.5f, pos, Offset.Zero)
-                    },
-                    onTap = {
-                        hasInteracted = true
-                        if (!isZoomedIn(currentScale())) onToggleChrome()
-                    },
-                )
-            },
-        ) { scale, offset ->
-            // Zooming in scales the whole rendered column as one unit (graphicsLayer, panning via
-            // offset, scroll disabled) — the same model the paged modes use. Zooming out can't use
-            // that trick: shrinking a fixed-size already-laid-out column with a post-layout paint
-            // transform leaves the freed-up space blank, since a LazyColumn only ever composes
-            // enough items to fill its own measured height (an earlier attempt tried inflating that
-            // measured height and scaling back down, but Modifier.height silently coerces to the
-            // parent's real constraints, and even required Height would only reveal more content
-            // *below* the current scroll position, not distribute it around the gesture). Instead,
-            // when zoomed out, each page shrinks its own layout size (width, and — via aspectRatio —
-            // proportionally its height) via [WebtoonPage]'s widthFraction, so the LazyColumn just
-            // measures and scrolls a genuinely denser strip of smaller pages: no post-hoc scaling,
-            // no borders, and scroll position behaves exactly like normal scrolling because it is.
-            val zoomedIn = scale >= 1f
-            LazyColumn(
-                state = listState,
-                userScrollEnabled = !isZoomedIn(scale),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(
-                        scaleX = if (zoomedIn) scale else 1f,
-                        scaleY = if (zoomedIn) scale else 1f,
-                        translationX = if (zoomedIn) offset.x else 0f,
-                        translationY = if (zoomedIn) offset.y else 0f,
-                        transformOrigin = ZoomPivot,
-                    ),
-            ) {
-                items(pageCount, key = { it }) { index ->
-                    WebtoonPage(
-                        pageModel = viewModel.pageModel,
-                        index = index,
-                        // Reserves the image's real height up front instead of measuring it as
-                        // zero/placeholder-sized until Coil decodes the bitmap — otherwise, as each
-                        // of many short images resolved its true (small) height, LazyColumn kept
-                        // remeasuring to keep the viewport filled and walked the scroll position
-                        // forward with no user input, landing on the last page on open.
-                        aspectRatio = pageAspectRatios[index],
-                        widthFraction = if (zoomedIn) 1f else scale,
-                    )
+        val density = LocalDensity.current
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // Only used to compute each page's *intrinsic* (scale = 1) pixel height from its
+            // aspectRatio, for the zoom-out scroll compensation below — not to inflate anything.
+            val fullWidthPx = with(density) { maxWidth.toPx() }
+            val cumulativeHeights = remember(pageAspectRatios, fullWidthPx) {
+                FloatArray(pageCount + 1).also { heights ->
+                    for (i in 0 until pageCount) heights[i + 1] = heights[i] + fullWidthPx / pageAspectRatios[i]
                 }
-                nextChapter?.let { next ->
-                    item(key = "next_chapter") {
-                        Box(
-                            Modifier.fillParentMaxSize().clickable { onNavigateToChapter(next.id) },
-                        ) {
-                            NextChapterPreview(next)
+            }
+            Zoomable(
+                key = Unit,
+                onZoomChanged = {},
+                onGesture = { hasInteracted = true },
+                modifier = Modifier.fillMaxSize(),
+                tapGestures = { currentScale, applyZoom, resetZoom ->
+                    detectTapGestures(
+                        onDoubleTap = { pos ->
+                            hasInteracted = true
+                            if (isZoomed(currentScale())) resetZoom() else applyZoom(2.5f, pos, Offset.Zero)
+                        },
+                        onTap = {
+                            hasInteracted = true
+                            if (!isZoomedIn(currentScale())) onToggleChrome()
+                        },
+                    )
+                },
+                // Shrinking each page's own layout size (below) means the LazyColumn's normal
+                // scroll-position bookkeeping — an (item index, pixel offset) pair — silently
+                // drifts across a zoom-out: Compose keeps the same *raw pixel* offset into the
+                // first visible item, which was measured against the *old* (bigger) page size, so
+                // reinterpreting it against the new, smaller page systematically walks the scroll
+                // position forward. Left uncorrected, that reads as the pinch centroid sliding
+                // upward — smoothly for zoom-in (which never touches the column's own scroll,
+                // just pans within already-composed content), but not for this per-page-shrink
+                // approach. Fix: recompute, from our own intrinsic-height model (scale-independent
+                // by construction), the exact (index, offset) pair that keeps the *intrinsic*
+                // content point under the pinch centroid fixed, and jump straight there — rather
+                // than trust Compose's own offset-preservation heuristic, which only reasons in
+                // raw pixels and has no notion of "the page shrank."
+                onScaleChange = { old, new, centroid ->
+                    if (old < 1f && new < 1f) {
+                        val startIndex = listState.firstVisibleItemIndex.coerceIn(0, pageCount)
+                        val tIntrinsic = cumulativeHeights[startIndex.coerceAtMost(pageCount)] +
+                            listState.firstVisibleItemScrollOffset / old
+                        val pIntrinsic = tIntrinsic + centroid.y / old
+                        val tTarget = pIntrinsic - centroid.y / new
+                        var lo = 0
+                        var hi = pageCount
+                        while (lo < hi) {
+                            val mid = (lo + hi + 1) / 2
+                            if (cumulativeHeights[mid] <= tTarget) lo = mid else hi = mid - 1
+                        }
+                        val targetIndex = lo.coerceIn(0, pageCount - 1)
+                        val targetOffset = ((tTarget - cumulativeHeights[targetIndex]) * new)
+                            .roundToInt().coerceAtLeast(0)
+                        scope.launch { listState.scrollToItem(targetIndex, targetOffset) }
+                    }
+                },
+            ) { scale, offset ->
+                // Zooming in scales the whole rendered column as one unit (graphicsLayer, panning
+                // via offset, scroll disabled) — the same model the paged modes use. Zooming out
+                // can't use that trick: shrinking a fixed-size already-laid-out column with a
+                // post-layout paint transform leaves the freed-up space blank, since a LazyColumn
+                // only ever composes enough items to fill its own measured height (an earlier
+                // attempt tried inflating that measured height and scaling back down, but
+                // Modifier.height silently coerces to the parent's real constraints, and even
+                // requiredHeight would only reveal more content *below* the current scroll
+                // position, not distribute it around the gesture). Instead, when zoomed out, each
+                // page shrinks its own layout size (width, and — via aspectRatio — proportionally
+                // its height) via [WebtoonPage]'s widthFraction, so the LazyColumn just measures
+                // and scrolls a genuinely denser strip of smaller pages: no post-hoc scaling, no
+                // borders, and scroll position behaves exactly like normal scrolling because it is
+                // (the scroll compensation above is what keeps that scrolling anchored correctly).
+                val zoomedIn = scale >= 1f
+                LazyColumn(
+                    state = listState,
+                    userScrollEnabled = !isZoomedIn(scale),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            scaleX = if (zoomedIn) scale else 1f,
+                            scaleY = if (zoomedIn) scale else 1f,
+                            translationX = if (zoomedIn) offset.x else 0f,
+                            translationY = if (zoomedIn) offset.y else 0f,
+                            transformOrigin = ZoomPivot,
+                        ),
+                ) {
+                    items(pageCount, key = { it }) { index ->
+                        WebtoonPage(
+                            pageModel = viewModel.pageModel,
+                            index = index,
+                            // Reserves the image's real height up front instead of measuring it as
+                            // zero/placeholder-sized until Coil decodes the bitmap — otherwise, as
+                            // each of many short images resolved its true (small) height,
+                            // LazyColumn kept remeasuring to keep the viewport filled and walked
+                            // the scroll position forward with no user input, landing on the last
+                            // page on open.
+                            aspectRatio = pageAspectRatios[index],
+                            widthFraction = if (zoomedIn) 1f else scale,
+                        )
+                    }
+                    nextChapter?.let { next ->
+                        item(key = "next_chapter") {
+                            Box(
+                                Modifier.fillParentMaxSize().clickable { onNavigateToChapter(next.id) },
+                            ) {
+                                NextChapterPreview(next)
+                            }
                         }
                     }
                 }
@@ -642,6 +689,10 @@ private fun Zoomable(
         applyZoom: (Float, Offset, Offset) -> Unit,
         resetZoom: () -> Unit,
     ) -> Unit,
+    // Fires on every raw scale change (pinch or double-tap), before recomposition — lets a caller
+    // whose content isn't a simple graphicsLayer target (ContinuousReader shrinks pages' own
+    // layout size instead) react to the transition itself, not just the resulting state.
+    onScaleChange: (oldScale: Float, newScale: Float, centroid: Offset) -> Unit = { _, _, _ -> },
     content: @Composable (scale: Float, offset: Offset) -> Unit,
 ) {
     // Keyed so zoom/pan resets when the pager moves to a different page (per-page usage) — the
@@ -657,8 +708,10 @@ private fun Zoomable(
     fun applyZoom(newScale: Float, centroid: Offset, pan: Offset) {
         val coerced = newScale.coerceIn(MIN_ZOOM, MAX_ZOOM)
         offset = zoomOffset(offset, scale, coerced, centroid, pan)
+        val old = scale
         scale = coerced
         onZoomChanged(isZoomedIn(scale))
+        if (coerced != old) onScaleChange(old, coerced, centroid)
     }
 
     fun resetZoom() {

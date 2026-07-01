@@ -16,8 +16,10 @@ import com.mangaread.core.scanner.LibraryScanner
 import com.russhwolf.settings.SharedPreferencesSettings
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
 import coil3.key.Keyer
 import coil3.request.Options
+import okio.Path.Companion.toOkioPath
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -40,6 +42,14 @@ class MainActivity : ComponentActivity() {
                     add(CoverFetcher.Factory(applicationContext, source))
                     add(Keyer<MangaPage> { page, _: Options -> "${page.model}#${page.index}" })
                     add(PageFetcher.Factory(applicationContext, source))
+                }
+                // Explicit (rather than relying on Coil's default) so covers/pages extracted
+                // on demand from CBZ/folders are only ever extracted once and survive restarts.
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(ctx.cacheDir.resolve("image_cache").toOkioPath())
+                        .maxSizePercent(0.05)
+                        .build()
                 }
                 .build()
         }

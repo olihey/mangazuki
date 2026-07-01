@@ -286,7 +286,8 @@ private fun PagedReader(
 /** VERTICAL_CONTINUOUS (webtoon): every page stacked in one continuously scrollable column, no
  * snapping. Simpler interaction than the paged modes — a single tap anywhere toggles the chrome;
  * no pinch-zoom yet (designed-for, not built — PLAN.md §8.1). Scrolling past the last page reaches
- * a next-chapter preview slot, same as the paged modes; tapping it switches chapters. */
+ * a next-chapter preview slot, same as the paged modes; scrolling it fully into view (or tapping
+ * it) switches chapters. */
 @Composable
 private fun ContinuousReader(
     viewModel: ReaderViewModel,
@@ -307,6 +308,17 @@ private fun ContinuousReader(
         snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
             viewModel.onPageChanged(index.coerceIn(0, pageCount - 1))
         }
+    }
+
+    // The next-chapter item is sized to exactly one viewport (fillParentMaxSize), so scrolling
+    // it fully into view is simultaneously hitting the end of the scrollable range — no separate
+    // "settle" concept needed like the paged pager's snap points.
+    LaunchedEffect(listState, pageCount, nextChapter) {
+        val next = nextChapter ?: return@LaunchedEffect
+        snapshotFlow {
+            listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == pageCount && !listState.canScrollForward
+        }.first { it }
+        onNavigateToChapter(next.id)
     }
 
     Box(Modifier.fillMaxSize()) {

@@ -59,6 +59,7 @@ class ReaderViewModel(
     val chapter: ChapterCard,
     seriesReadingDirection: ReadingDirection?,
     val seriesTitle: String,
+    initialNextChapter: ChapterCard?,
     private val prefs: ReaderPreferences,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
@@ -95,11 +96,17 @@ class ReaderViewModel(
     val currentPage = MutableStateFlow(chapter.lastPageIndex.coerceAtLeast(0))
 
     /** The chapter right after this one in the series (same order as the series screen), if
-     * any — lets the reader offer a "swipe past the last page to continue" transition. */
+     * any — lets the reader offer a "swipe past the last page to continue" transition. Seeded
+     * with [initialNextChapter] (already known synchronously from the series' chapter list at
+     * navigation time) rather than `null`, so it's correct from the very first frame — the
+     * continuous/webtoon reader's initial scroll-to-resume-position depends on the final item
+     * count being right immediately; a transient `null` here (before this Flow's first real
+     * emission) used to make LazyColumn think there was nothing past a short last page and pull
+     * the scroll back to fill the viewport, landing well before the actual resume point. */
     val nextChapter: StateFlow<ChapterCard?> = repository.observeChapters(chapter.seriesId).map { list ->
         val index = list.indexOfFirst { it.id == chapter.id }
         if (index in 0 until list.lastIndex) list[index + 1] else null
-    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), initialNextChapter)
 
     /** One-time overlay explaining tap zones (PLAN.md §8.1); dismiss persists so it shows once. */
     private val _showGestureHelp = MutableStateFlow(!prefs.hasSeenGestureHelp)

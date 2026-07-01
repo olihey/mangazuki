@@ -72,8 +72,10 @@ private fun ReaderHost(
 
     val seriesDirection = series?.readingDirection
     val title = series?.title ?: ""
+    val chapterIndex = chapters.indexOfFirst { it.id == chapterId }
+    val nextChapter = if (chapterIndex in 0 until chapters.lastIndex) chapters[chapterIndex + 1] else null
     val viewModel = remember(chapter.id, seriesDirection, title) {
-        ReaderViewModel(graph.repository, graph.source, chapter, seriesDirection, title, graph.readerPreferences)
+        ReaderViewModel(graph.repository, graph.source, chapter, seriesDirection, title, nextChapter, graph.readerPreferences)
     }
     ReaderScreen(viewModel, onBack, onNavigateToChapter)
 }

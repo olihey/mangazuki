@@ -54,7 +54,12 @@ import com.mangaread.core.data.LibraryCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(viewModel: LibraryViewModel, onPickFolder: () -> Unit, onSeriesClick: (String) -> Unit) {
+fun LibraryScreen(
+    viewModel: LibraryViewModel,
+    onPickFolder: () -> Unit,
+    onSeriesClick: (String) -> Unit,
+    onSettingsClick: () -> Unit,
+) {
     val progress by viewModel.progress.collectAsState()
     val canRescan by viewModel.canRescan.collectAsState()
     val needsReGrant by viewModel.needsReGrant.collectAsState()
@@ -93,6 +98,7 @@ fun LibraryScreen(viewModel: LibraryViewModel, onPickFolder: () -> Unit, onSerie
                     actions = {
                         TextButton(onClick = viewModel::cycleViewMode) { Text(viewMode.name.lowercase().replaceFirstChar { it.uppercase() }) }
                         if (canRescan && progress == null) TextButton(onClick = viewModel::rescan) { Text("Re-scan") }
+                        TextButton(onClick = onSettingsClick) { Text("Settings") }
                     },
                 )
             }

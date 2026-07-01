@@ -4,6 +4,8 @@ import com.mangaread.core.data.ChapterCard
 import com.mangaread.core.data.LibraryRepository
 import com.mangaread.core.domain.Chapter as DomainChapter
 import com.mangaread.core.domain.ChapterFormat
+import com.mangaread.core.domain.ReadingDirection
+import com.mangaread.core.domain.ReadingMode
 import com.mangaread.core.reader.pageProviderFor
 import com.mangaread.core.source.MangaSource
 import kotlinx.coroutines.CoroutineScope
@@ -49,12 +51,25 @@ class ReaderViewModel(
     private val repository: LibraryRepository,
     source: MangaSource,
     val chapter: ChapterCard,
-    val readingDirectionRtl: Boolean,
+    seriesReadingDirection: ReadingDirection?,
     val seriesTitle: String,
     private val prefs: ReaderPreferences,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val pageModel: String = if (chapter.format == "CBZ") "cbz:${chapter.locator}" else "imgdir:${chapter.locator}"
+
+    /** Global default (PLAN.md §8); read once — the ViewModel is recreated per chapter anyway. */
+    val readingMode: ReadingMode = prefs.defaultReadingMode
+    val invertTapZones: Boolean = prefs.invertTapZones
+    val isVertical: Boolean = readingMode == ReadingMode.VERTICAL_PAGED || readingMode == ReadingMode.VERTICAL_CONTINUOUS
+
+    /** A series-level override wins; otherwise falls back to the default mode's own direction
+     * (still RTL unless the user's default is explicitly PAGED_LTR — manga defaults to RTL). */
+    val readingDirectionRtl: Boolean = when (seriesReadingDirection) {
+        ReadingDirection.LTR -> false
+        ReadingDirection.RTL -> true
+        null -> readingMode != ReadingMode.PAGED_LTR
+    }
 
     private val _pageCount = MutableStateFlow(chapter.pageCount ?: 0)
     val pageCount: StateFlow<Int> = _pageCount

@@ -8,7 +8,6 @@ import androidx.compose.runtime.remember
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.mangaread.core.domain.ReadingDirection
 
 /** Library → Series → Reader (PLAN.md §7.3), a plain nav-compose push stack. */
 @Composable
@@ -21,6 +20,13 @@ fun App(graph: AppGraph, onPickFolder: () -> Unit) {
                     viewModel = graph.libraryViewModel,
                     onPickFolder = onPickFolder,
                     onSeriesClick = { seriesId -> navController.navigate("series/$seriesId") },
+                    onSettingsClick = { navController.navigate("settings") },
+                )
+            }
+            composable("settings") {
+                SettingsScreen(
+                    prefs = graph.readerPreferences,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable("series/{seriesId}") { entry ->
@@ -64,10 +70,10 @@ private fun ReaderHost(
     val chapters by remember(seriesId) { graph.repository.observeChapters(seriesId) }.collectAsState(initial = emptyList())
     val chapter = chapters.find { it.id == chapterId } ?: return
 
-    val rtl = series?.readingDirection != ReadingDirection.LTR
+    val seriesDirection = series?.readingDirection
     val title = series?.title ?: ""
-    val viewModel = remember(chapter.id, rtl, title) {
-        ReaderViewModel(graph.repository, graph.source, chapter, rtl, title, graph.readerPreferences)
+    val viewModel = remember(chapter.id, seriesDirection, title) {
+        ReaderViewModel(graph.repository, graph.source, chapter, seriesDirection, title, graph.readerPreferences)
     }
     ReaderScreen(viewModel, onBack, onNavigateToChapter)
 }

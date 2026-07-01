@@ -303,6 +303,17 @@ fun pageProviderFor(c: Chapter) = when (c.format) { Format.IMAGE_DIR -> ImageDir
 (manga default — wire RTL early), `VERTICAL_PAGED`, `VERTICAL_CONTINUOUS` (webtoon).
 Plus fit modes, pinch-zoom/pan, double-page spread on landscape/tablet.
 
+All four modes are implemented — `ReaderPreferences.defaultReadingMode` (global, set in the new
+Settings screen) picks between them; a series' own `reading_direction` still overrides
+LTR/RTL for the two paged modes specifically (a per-series *mode* override, i.e. forcing one
+series into webtoon while the rest use paged, is not built — only direction). `PAGED_LTR`/
+`PAGED_RTL` share one `HorizontalPager` implementation with spread pairing, the next-chapter
+preview slot, pinch-zoom, and tap zones; `VERTICAL_PAGED` reuses the *exact same* page-content
+lambda through a `VerticalPager` instead (top/bottom tap zones, no RTL concept). Both live in
+`PagedReader`. `VERTICAL_CONTINUOUS` (webtoon) is a separate, deliberately simpler
+`ContinuousReader`: a plain `LazyColumn` of full-width images, single-tap-anywhere toggles the
+chrome, no pinch-zoom and no next-chapter preview yet — designed-for, not built.
+
 **Double-page spread detection.** Strategy: **aspect-ratio heuristic** — a page wider than
 tall is treated as a pre-stitched spread and shown alone; portrait pages are paired two-up on
 landscape/tablet. This is why `PageProvider` exposes `pageSize(i)`: the reader probes
@@ -318,10 +329,14 @@ pages**.
 This is what separates "fine" from "I'd use it daily." Treat the reader as *not* done
 when pages merely display:
 
-- **Configurable tap zones.** The screen splits into left / right / center regions
-  mapping to prev / next / menu, and the mapping is **RTL-aware** — in a right-to-left
-  series, the left zone advances and the right goes back. User-configurable layout.
-- **Volume-key paging (Android).** Hardware volume up/down turn pages; a settings toggle.
+- **Configurable tap zones.** The screen splits into left / right / center regions (top / bottom
+  / center for `VERTICAL_PAGED`) mapping to prev / next / menu, RTL-aware by default, with a
+  settings toggle (`ReaderPreferences.invertTapZones`) that flips which side advances —
+  `computeTapZone(...)` in `ReaderScreen.kt` is the single source of truth both screens
+  (reader + the gesture-help overlay) derive their zone/label logic from.
+- **Volume-key paging (Android).** Hardware volume up/down turn pages; a settings toggle
+  (`ReaderPreferences.volumeKeyPaging`, checked live in `MainActivity.dispatchKeyEvent` — it
+  used to be stored but never actually read, a real bug fixed alongside this).
 - **Keep-screen-on while reading.**
 - **Double-tap to zoom** (toggle fit ↔ zoomed at the tap point); pinch-zoom/pan too.
 - **One-time gesture-help overlay** on first open of the reader, dismissible.

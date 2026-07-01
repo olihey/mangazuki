@@ -22,8 +22,13 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerScope
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,9 +59,11 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.mangaread.core.data.ChapterCard
+import com.mangaread.core.domain.ReadingMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -66,10 +73,11 @@ import kotlin.math.roundToInt
 private enum class TapZone { BACKWARD, FORWARD, MENU }
 
 /**
- * Pure UI over "page N of a chapter" (PLAN.md §8), plus the gesture/polish bundle (§8.1):
- * RTL-aware tap zones, double-tap + pinch zoom with pan, keep-screen-on, volume-key paging, a
+ * Pure UI over "page N of a chapter" (PLAN.md §8): paged (horizontal or vertical, RTL-aware) or
+ * continuous-scroll (webtoon) per the reading mode, plus the gesture/polish bundle (§8.1) —
+ * configurable tap zones, double-tap + pinch zoom with pan, keep-screen-on, volume-key paging, a
  * one-time gesture-help overlay, double-page spread pairing on wide containers, a chrome overlay
- * with a scrubbable progress slider, and a next-chapter preview when swiping past the last page.
+ * with a scrubbable progress slider, and (paged modes) a next-chapter preview past the last page.
  */
 @Composable
 fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToChapter: (String) -> Unit) {
@@ -89,8 +97,66 @@ fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToCha
     // The system bars follow the chrome overlay: shown together, hidden together.
     var showChrome by remember { mutableStateOf(true) }
     ImmersiveMode(enabled = !showChrome)
+    var isScrubbing by remember { mutableStateOf(false) }
+    val showGestureHelp by viewModel.showGestureHelp.collectAsState()
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+    // Auto-hide only the initial chrome shown on opening the reader — a one-shot timer, not
+    // re-armed by later manual toggles (center tap shows/hides it with no timeout after
+    // that). Waits out an in-progress scrub rather than yanking the slider mid-drag.
+    LaunchedEffect(Unit) {
+        delay(5_000)
+        snapshotFlow { isScrubbing }.first { !it }
+        showChrome = false
+    }
+
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        if (viewModel.readingMode == ReadingMode.VERTICAL_CONTINUOUS) {
+            ContinuousReader(
+                viewModel = viewModel,
+                pageCount = pageCount,
+                showChrome = showChrome,
+                onShowChromeChange = { showChrome = it },
+                onScrubbingChanged = { isScrubbing = it },
+                onBack = onBack,
+            )
+        } else {
+            PagedReader(
+                viewModel = viewModel,
+                pageCount = pageCount,
+                wideFlags = wideFlags,
+                showChrome = showChrome,
+                onShowChromeChange = { showChrome = it },
+                onScrubbingChanged = { isScrubbing = it },
+                onBack = onBack,
+                onNavigateToChapter = onNavigateToChapter,
+            )
+        }
+        if (showGestureHelp) {
+            GestureHelpOverlay(
+                isRtl = viewModel.readingDirectionRtl,
+                invertTapZones = viewModel.invertTapZones,
+                isVertical = viewModel.readingMode == ReadingMode.VERTICAL_PAGED,
+                onDismiss = viewModel::dismissGestureHelp,
+            )
+        }
+    }
+}
+
+/** PAGED_LTR/PAGED_RTL/VERTICAL_PAGED: one page (or spread) per swipe, snapping, zoomable,
+ * with the next-chapter preview slot past the last page. */
+@Composable
+private fun PagedReader(
+    viewModel: ReaderViewModel,
+    pageCount: Int,
+    wideFlags: List<Boolean>,
+    showChrome: Boolean,
+    onShowChromeChange: (Boolean) -> Unit,
+    onScrubbingChanged: (Boolean) -> Unit,
+    onBack: () -> Unit,
+    onNavigateToChapter: (String) -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val isVertical = viewModel.readingMode == ReadingMode.VERTICAL_PAGED
         val pairPortrait = maxWidth > maxHeight
         val units = remember(wideFlags, pairPortrait) { buildPageUnits(pageCount, wideFlags, pairPortrait) }
         val initialUnit = remember(units) { unitIndexForPage(units, viewModel.currentPage.value) }
@@ -102,8 +168,6 @@ fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToCha
         val pagerState = rememberPagerState(initialPage = initialUnit.coerceIn(0, units.size - 1)) { totalCount }
         val scope = rememberCoroutineScope()
         var zoomedIn by remember { mutableStateOf(false) }
-        var isScrubbing by remember { mutableStateOf(false) }
-        val showGestureHelp by viewModel.showGestureHelp.collectAsState()
 
         LaunchedEffect(pagerState, units) {
             snapshotFlow { pagerState.currentPage }.collect { unitIndex ->
@@ -112,15 +176,6 @@ fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToCha
         }
         // A page always starts unzoomed, so leaving it should re-enable pager swiping.
         LaunchedEffect(pagerState.currentPage) { zoomedIn = false }
-
-        // Auto-hide only the initial chrome shown on opening the reader — a one-shot timer, not
-        // re-armed by later manual toggles (center tap shows/hides it with no timeout after
-        // that). Waits out an in-progress scrub rather than yanking the slider mid-drag.
-        LaunchedEffect(Unit) {
-            delay(5_000)
-            snapshotFlow { isScrubbing }.first { !it }
-            showChrome = false
-        }
 
         // Only fires once the swipe settles ON the preview slot (not just passing through
         // during a fling), so a quick overscroll-and-snap-back doesn't switch chapters.
@@ -131,54 +186,71 @@ fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToCha
             }
         }
 
-        DisposableEffect(viewModel.readingDirectionRtl, units.size) {
+        DisposableEffect(viewModel.readingDirectionRtl, isVertical, units.size) {
             VolumeKeyBus.onVolumeKey = { down ->
-                val forward = if (viewModel.readingDirectionRtl) !down else down
+                // "Down" always turns to the next page in reading order — vertical top-to-bottom
+                // has no reversed direction; horizontal still respects LTR/RTL.
+                val forward = if (isVertical) down else (if (viewModel.readingDirectionRtl) !down else down)
                 scrollBy(pagerState, scope, if (forward) 1 else -1, units.size)
                 true
             }
             onDispose { VolumeKeyBus.onVolumeKey = null }
         }
 
-        HorizontalPager(
-            state = pagerState,
-            reverseLayout = viewModel.readingDirectionRtl,
-            userScrollEnabled = !zoomedIn,
-            modifier = Modifier.fillMaxSize(),
-        ) { unitIndex ->
+        val pageContent: @Composable PagerScope.(Int) -> Unit = { unitIndex ->
             if (unitIndex >= units.size) {
                 nextChapter?.let { NextChapterPreview(it) }
-                return@HorizontalPager
-            }
-            val onZoneTap: (TapZone) -> Unit = { zone ->
-                when (zone) {
-                    TapZone.FORWARD -> scrollBy(pagerState, scope, 1, units.size)
-                    TapZone.BACKWARD -> scrollBy(pagerState, scope, -1, units.size)
-                    TapZone.MENU -> showChrome = !showChrome
+            } else {
+                val onZoneTap: (TapZone) -> Unit = { zone ->
+                    when (zone) {
+                        TapZone.FORWARD -> scrollBy(pagerState, scope, 1, units.size)
+                        TapZone.BACKWARD -> scrollBy(pagerState, scope, -1, units.size)
+                        TapZone.MENU -> onShowChromeChange(!showChrome)
+                    }
                 }
-            }
-            when (val unit = units[unitIndex]) {
-                is PageUnit.Single -> ReaderPage(
-                    viewModel.pageModel, unit.index, viewModel.readingDirectionRtl, onZoneTap,
-                    onZoomChanged = { zoomedIn = it },
-                )
-                is PageUnit.Spread -> {
-                    val order = if (viewModel.readingDirectionRtl) listOf(unit.second, unit.first) else listOf(unit.first, unit.second)
-                    Row(Modifier.fillMaxSize()) {
-                        order.forEach { pageIndex ->
-                            ReaderPage(
-                                viewModel.pageModel,
-                                pageIndex,
-                                viewModel.readingDirectionRtl,
-                                onZoneTap,
-                                onZoomChanged = { zoomedIn = it },
-                                modifier = Modifier.weight(1f).fillMaxHeight(),
-                            )
+                when (val unit = units[unitIndex]) {
+                    is PageUnit.Single -> ReaderPage(
+                        viewModel.pageModel, unit.index, viewModel.readingDirectionRtl, viewModel.invertTapZones,
+                        isVertical, onZoneTap, onZoomChanged = { zoomedIn = it },
+                    )
+                    is PageUnit.Spread -> {
+                        val order = if (viewModel.readingDirectionRtl) listOf(unit.second, unit.first) else listOf(unit.first, unit.second)
+                        Row(Modifier.fillMaxSize()) {
+                            order.forEach { pageIndex ->
+                                ReaderPage(
+                                    viewModel.pageModel,
+                                    pageIndex,
+                                    viewModel.readingDirectionRtl,
+                                    viewModel.invertTapZones,
+                                    isVertical,
+                                    onZoneTap,
+                                    onZoomChanged = { zoomedIn = it },
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+
+        if (isVertical) {
+            VerticalPager(
+                state = pagerState,
+                userScrollEnabled = !zoomedIn,
+                modifier = Modifier.fillMaxSize(),
+                pageContent = pageContent,
+            )
+        } else {
+            HorizontalPager(
+                state = pagerState,
+                reverseLayout = viewModel.readingDirectionRtl,
+                userScrollEnabled = !zoomedIn,
+                modifier = Modifier.fillMaxSize(),
+                pageContent = pageContent,
+            )
+        }
+
         if (showChrome && pagerState.currentPage < units.size) {
             val rawPage = progressIndexFor(units.getOrNull(pagerState.currentPage))
             ReaderChrome(
@@ -190,17 +262,65 @@ fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToCha
                 onSeek = { target ->
                     scope.launch { pagerState.scrollToPage(unitIndexForPage(units, target)) }
                 },
-                onScrubbingChanged = { isScrubbing = it },
+                onScrubbingChanged = onScrubbingChanged,
             )
         }
-        if (showGestureHelp) {
-            GestureHelpOverlay(isRtl = viewModel.readingDirectionRtl, onDismiss = viewModel::dismissGestureHelp)
+    }
+}
+
+/** VERTICAL_CONTINUOUS (webtoon): every page stacked in one continuously scrollable column, no
+ * snapping. Simpler interaction than the paged modes — a single tap anywhere toggles the chrome;
+ * no pinch-zoom or next-chapter preview yet (designed-for, not built — PLAN.md §8.1). */
+@Composable
+private fun ContinuousReader(
+    viewModel: ReaderViewModel,
+    pageCount: Int,
+    showChrome: Boolean,
+    onShowChromeChange: (Boolean) -> Unit,
+    onScrubbingChanged: (Boolean) -> Unit,
+    onBack: () -> Unit,
+) {
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = viewModel.currentPage.value.coerceIn(0, pageCount - 1))
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
+            viewModel.onPageChanged(index.coerceIn(0, pageCount - 1))
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                detectTapGestures(onTap = { onShowChromeChange(!showChrome) })
+            },
+        ) {
+            items(pageCount, key = { it }) { index ->
+                AsyncImage(
+                    model = MangaPage(viewModel.pageModel, index),
+                    contentDescription = "Page ${index + 1}",
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        if (showChrome) {
+            ReaderChrome(
+                seriesTitle = viewModel.seriesTitle,
+                chapterTitle = viewModel.chapter.displayName,
+                currentPage = listState.firstVisibleItemIndex.coerceIn(0, pageCount - 1),
+                pageCount = pageCount,
+                onBack = onBack,
+                onSeek = { target -> scope.launch { listState.scrollToItem(target.coerceIn(0, pageCount - 1)) } },
+                onScrubbingChanged = onScrubbingChanged,
+            )
         }
     }
 }
 
 /** Series/chapter info up top; a scrubbable slider along the bottom for quick page jumps (both
- * toggled by the center tap zone). */
+ * toggled by the center tap zone in paged modes, or any tap in continuous mode). */
 @Composable
 private fun BoxScope.ReaderChrome(
     seriesTitle: String,
@@ -317,11 +437,28 @@ private fun scrollBy(pagerState: PagerState, scope: CoroutineScope, delta: Int, 
     scope.launch { pagerState.animateScrollToPage(target) }
 }
 
+/** Base tap-zone semantics: horizontal respects RTL (first third advances in RTL); vertical has
+ * no reversed direction (top-to-bottom is the only order). [invertTapZones] flips whichever side
+ * that resolves to advance — the "user-configurable layout" from PLAN.md §8.1. */
+private fun computeTapZone(pos: Offset, size: IntSize, isRtl: Boolean, invertTapZones: Boolean, isVertical: Boolean): TapZone {
+    val coordinate = if (isVertical) pos.y else pos.x
+    val extent = if (isVertical) size.height else size.width
+    val third = extent / 3f
+    val firstThirdIsForward = (if (isVertical) false else isRtl) xor invertTapZones
+    return when {
+        coordinate < third -> if (firstThirdIsForward) TapZone.FORWARD else TapZone.BACKWARD
+        coordinate > third * 2 -> if (firstThirdIsForward) TapZone.BACKWARD else TapZone.FORWARD
+        else -> TapZone.MENU
+    }
+}
+
 @Composable
 private fun ReaderPage(
     pageModel: String,
     index: Int,
     isRtl: Boolean,
+    invertTapZones: Boolean,
+    isVertical: Boolean,
     onZoneTap: (TapZone) -> Unit,
     onZoomChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier.fillMaxSize(),
@@ -339,7 +476,7 @@ private fun ReaderPage(
 
     Box(
         modifier
-            .pointerInput(isRtl, index) {
+            .pointerInput(isRtl, invertTapZones, isVertical, index) {
                 detectTapGestures(
                     onDoubleTap = { pos ->
                         if (scale > 1f) {
@@ -352,13 +489,7 @@ private fun ReaderPage(
                     },
                     onTap = { pos ->
                         if (scale > 1f) return@detectTapGestures // zoomed: taps pan, not navigate
-                        val third = size.width / 3f
-                        val zone = when {
-                            pos.x < third -> if (isRtl) TapZone.FORWARD else TapZone.BACKWARD
-                            pos.x > third * 2 -> if (isRtl) TapZone.BACKWARD else TapZone.FORWARD
-                            else -> TapZone.MENU
-                        }
-                        onZoneTap(zone)
+                        onZoneTap(computeTapZone(pos, size, isRtl, invertTapZones, isVertical))
                     },
                 )
             }
@@ -399,9 +530,11 @@ private fun ReaderPage(
 }
 
 @Composable
-private fun GestureHelpOverlay(isRtl: Boolean, onDismiss: () -> Unit) {
-    val forwardSide = if (isRtl) "left" else "right"
-    val backSide = if (isRtl) "right" else "left"
+private fun GestureHelpOverlay(isRtl: Boolean, invertTapZones: Boolean, isVertical: Boolean, onDismiss: () -> Unit) {
+    val firstThirdIsForward = (if (isVertical) false else isRtl) xor invertTapZones
+    val (startLabel, endLabel) = if (isVertical) "top" to "bottom" else "left" to "right"
+    val forwardSide = if (firstThirdIsForward) startLabel else endLabel
+    val backSide = if (firstThirdIsForward) endLabel else startLabel
     Box(
         Modifier
             .fillMaxSize()

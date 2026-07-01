@@ -361,6 +361,10 @@ narrower case: they're regenerable at any time from the source file, so they liv
 OS-purgeable **app cache dir** (`Context.cacheDir`), not app-internal storage. A scan checks
 the cached file's actual existence (not just the DB's `cover_path`) and re-generates it if the
 OS has reclaimed it. This distinction matters — don't "fix" it by moving them to `filesDir`.
+It also compares the source's last-modified `change_token` (captured *before* that scan's
+`persistSeries` overwrites it) against the prior scan's value, so a chapter file edited/replaced
+in place still gets its cover/page-count regenerated even though its `cover_path` never went
+missing.
 
 ### 9.2 Enrichment pipeline & rate limiting
 

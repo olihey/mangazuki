@@ -84,7 +84,7 @@ class LibraryRepository(db: MangaDatabase) {
     suspend fun coverStatesForSeries(seriesId: String): Map<String, ChapterCoverState> =
         withContext(ioDispatcher) {
             q.selectCoverStatesForSeries(seriesId).executeAsList().associate { r ->
-                r.id to ChapterCoverState(r.cover_path, r.page_count?.toInt())
+                r.id to ChapterCoverState(r.cover_path, r.page_count?.toInt(), r.change_token)
             }
         }
 

@@ -1,5 +1,6 @@
 package com.mangaread
 
+import com.mangaread.core.data.ChapterCoverState
 import com.mangaread.core.data.LibraryRepository
 import com.mangaread.core.domain.Chapter
 import com.mangaread.core.domain.nowEpochMillis
@@ -35,8 +36,11 @@ class LibrarySyncer(
         var series = 0
         var chapters = 0
         scanner.scan(rootLocator, scanAt).collect { scanned ->
+            // Read the PRIOR scan's state before persistSeries overwrites change_token with the
+            // freshly-scanned value — otherwise every file would look "unchanged" by definition.
+            val priorStates = if (coverCache != null) repository.coverStatesForSeries(scanned.series.id) else emptyMap()
             repository.persistSeries(scanned.series, scanned.chapters)
-            if (coverCache != null) generateSeriesCoverNow(scanned.series.id, scanned.chapters)
+            if (coverCache != null) generateSeriesCoverNow(scanned.chapters, priorStates)
             series++
             chapters += scanned.chapters.size
             onProgress(series, chapters)
@@ -63,21 +67,23 @@ class LibrarySyncer(
     /**
      * Only the chapter the library actually displays as the cover is generated inline; the rest
      * of the series' chapters (used by the series-screen grid) are queued into [deferred].
-     * Chapters that already have both a cached cover and a known page count are skipped
-     * entirely — no file/archive is opened for them at all — which is what keeps a re-scan of an
-     * already-scanned library fast.
+     * A chapter is skipped entirely — no file/archive opened for it at all — only when its cover
+     * is already cached, its page count is already known, AND its source file hasn't changed
+     * since [priorStates] was captured (compared via the source's last-modified `change_token`,
+     * PLAN.md §9) — so an edited/replaced chapter file still gets picked up on the next scan.
      */
-    private suspend fun generateSeriesCoverNow(seriesId: String, chapters: List<Chapter>) {
+    private suspend fun generateSeriesCoverNow(chapters: List<Chapter>, priorStates: Map<String, ChapterCoverState>) {
         val cache = coverCache ?: return
         if (chapters.isEmpty()) return
-        val known = repository.coverStatesForSeries(seriesId)
         fun needsWork(chapter: Chapter): Boolean {
-            val state = known[chapter.id]
-            val coverPath = state?.coverPath
+            val state = priorStates[chapter.id] ?: return true
+            val coverPath = state.coverPath
             // The cache dir is OS-purgeable, so a recorded cover_path isn't trustworthy on its
-            // own — re-generate whenever the file itself is actually gone (PLAN.md §9).
+            // own — re-generate whenever the file itself is actually gone.
             val coverMissing = coverPath == null || !cache.coverPathExists(coverPath)
-            return state == null || coverMissing || (state.pageCount ?: 0) <= 0
+            val pageCountMissing = (state.pageCount ?: 0) <= 0
+            val fileChanged = chapter.changeToken != null && chapter.changeToken != state.changeToken
+            return coverMissing || pageCountMissing || fileChanged
         }
 
         val coverChapter = chapters.minWith(seriesCoverOrder)

@@ -54,10 +54,16 @@ class SeriesViewModel(
         scope.launch { batchWriteCounts() }
         scope.launch {
             chapters.collect { list ->
-                list.filter { it.pageCount == null && it.id !in pageCountAttempted }.forEach { chapter ->
-                    pageCountAttempted += chapter.id
-                    scope.launch { countPages(chapter) }
-                }
+                // The read-percentage ring only ever renders for a chapter that's in progress
+                // (started, not finished) — counting anything else (the vast majority of a
+                // freshly-scanned series: untouched chapters, or ones just marked read wholesale)
+                // is pure waste that was the real cost behind "series screen takes forever to
+                // open": reading through hundreds of whole CBZs nobody has even started yet.
+                list.filter { !it.completed && it.lastPageIndex > 0 && it.pageCount == null && it.id !in pageCountAttempted }
+                    .forEach { chapter ->
+                        pageCountAttempted += chapter.id
+                        scope.launch { countPages(chapter) }
+                    }
             }
         }
     }

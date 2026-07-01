@@ -380,6 +380,20 @@ resolution into a `suspend fun create(...)` factory on each provider and making 
 itself `suspend`; `SeriesViewModel` also caps concurrent counts with a `Semaphore(4)` since
 counting a CBZ means reading the whole archive. Don't reintroduce a blocking constructor here.
 
+**On-demand page counting only runs for chapters that need it displayed.** The read-percentage
+ring only ever renders for a chapter that's *in progress* (`!completed && lastPageIndex > 0`) —
+untouched chapters and wholesale-marked-read chapters show nothing, so counting them was pure
+waste. That waste was the real remaining cost behind "series screen still blocks": a
+freshly-scanned series can have hundreds of chapters, and `SeriesViewModel` was counting *all*
+of them (each requiring a full CBZ scan) rather than just the handful actually in progress.
+Filtered `chapters.collect` in `SeriesViewModel` down to that condition. Writes are also batched
+(one transaction per ~200ms via a `Channel`, not one write per chapter) since SQLDelight's
+`observeChapters` reactive query re-runs on every write and a storm of individual writes
+recomposes the whole grid repeatedly. `CbzPageProvider`'s zip scan also now streams straight from
+the source (`BufferedSource.inputStream()`) instead of buffering the entire archive into a
+`ByteArray` first — don't reintroduce that either; a 50MB CBZ shouldn't need a 50MB allocation
+just to enumerate its entries.
+
 ### 9.2 Enrichment pipeline & rate limiting
 
 A first scan of a large library must not fire one AniList request per series in parallel —

@@ -5,7 +5,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.mangaread.core.source.MangaSource
 import okio.buffer
-import java.io.ByteArrayInputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 
@@ -71,9 +70,10 @@ class CbzPageProvider private constructor(
             return CbzPageProvider(names.sorted(), cbzLocator, source)
         }
 
+        /** Streams straight from the source instead of buffering the whole archive into memory
+         * first — counting/scanning a 50MB CBZ shouldn't need a 50MB ByteArray to do it. */
         private suspend fun withZip(cbzLocator: String, source: MangaSource, block: (ZipInputStream) -> Unit) {
-            val bytes = source.open(cbzLocator).buffer().use { it.readByteArray() }
-            ZipInputStream(ByteArrayInputStream(bytes)).use(block)
+            ZipInputStream(source.open(cbzLocator).buffer().inputStream()).use(block)
         }
     }
 }

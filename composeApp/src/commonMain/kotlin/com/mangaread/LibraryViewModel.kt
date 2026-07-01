@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 
 data class ScanProgress(val seriesFound: Int, val chaptersFound: Int)
 
-enum class SortMode(val label: String) { NAME("Name"), RECENTLY_ADDED("Recently added") }
+enum class SortMode(val label: String) { NAME("Name"), RECENTLY_ADDED("Recently added"), RECENTLY_READ("Recently read") }
 enum class ViewMode { LIST, GRID, DETAILED }
 
 class LibraryViewModel(
@@ -55,6 +55,7 @@ class LibraryViewModel(
             val comparator: Comparator<LibraryCard> = when (sortMode) {
                 SortMode.NAME -> compareBy { it.sortTitle }
                 SortMode.RECENTLY_ADDED -> compareBy { it.latestChapterAdded }
+                SortMode.RECENTLY_READ -> compareBy { it.latestRead ?: 0L }
             }
             list.sortedWith(if (asc) comparator else comparator.reversed())
         }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())

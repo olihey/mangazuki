@@ -38,6 +38,8 @@ class MainActivity : ComponentActivity() {
                 .components {
                     add(Keyer<MangaCover> { cover, _: Options -> cover.model })
                     add(CoverFetcher.Factory(applicationContext, source))
+                    add(Keyer<MangaPage> { page, _: Options -> "${page.model}#${page.index}" })
+                    add(PageFetcher.Factory(applicationContext, source))
                 }
                 .build()
         }
@@ -49,6 +51,10 @@ class MainActivity : ComponentActivity() {
             SharedPreferencesSettings(getSharedPreferences("manga_prefs", Context.MODE_PRIVATE)),
         )
         viewModel = LibraryViewModel(repository, scanner, source, prefs)
+        val readerPrefs = ReaderPreferences(
+            SharedPreferencesSettings(getSharedPreferences("manga_prefs", Context.MODE_PRIVATE)),
+        )
+        val graph = AppGraph(repository, source, viewModel, readerPrefs)
 
         pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             if (uri != null) {
@@ -65,7 +71,21 @@ class MainActivity : ComponentActivity() {
         scheduleBackgroundScan()
 
         enableEdgeToEdge()
-        setContent { App(viewModel) { pickFolder.launch(null) } }
+        setContent { App(graph) { pickFolder.launch(null) } }
+    }
+
+    /** Volume-key paging while the reader is open (PLAN.md §8.1); consumed events skip the
+     * system volume UI. [VolumeKeyBus.onVolumeKey] is only set while ReaderScreen is visible. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+            val down = when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> true
+                android.view.KeyEvent.KEYCODE_VOLUME_UP -> false
+                else -> null
+            }
+            if (down != null && VolumeKeyBus.onVolumeKey?.invoke(down) == true) return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /** Keep the library fresh in the background (no-ops if no root/grant — see ScanWorker). */

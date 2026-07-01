@@ -2,11 +2,13 @@ package com.mangaread.core.data
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
+import app.cash.sqldelight.coroutines.mapToOneOrNull
 import com.mangaread.core.data.db.MangaDatabase
 import com.mangaread.core.domain.Chapter as DomainChapter
 import com.mangaread.core.domain.ReadingDirection
 import com.mangaread.core.domain.Series as DomainSeries
 import com.mangaread.core.domain.ioDispatcher
+import com.mangaread.core.domain.nowEpochMillis
 import com.mangaread.core.data.db.Series as SeriesRow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -34,9 +36,45 @@ class LibraryRepository(db: MangaDatabase) {
                     chapterCount = r.chapter_count.toInt(),
                     unreadCount = (r.chapter_count - r.read_count).toInt(),
                     latestChapterAdded = r.latest_chapter_added ?: r.date_added,
+                    latestRead = r.latest_read,
                     coverModel = coverModel(r.cover_path, r.cover_format, r.cover_locator),
                 )
             }
+        }
+
+    fun observeSeries(seriesId: String): Flow<DomainSeries?> =
+        q.selectSeriesById(seriesId).asFlow().mapToOneOrNull(ioDispatcher).map { it?.let(::toDomain) }
+
+    /** Chapters for the series screen, grouped by volume in the VM (PLAN.md §7.3). */
+    fun observeChapters(seriesId: String): Flow<List<ChapterCard>> =
+        q.selectChaptersForSeriesWithProgress(seriesId).asFlow().mapToList(ioDispatcher).map { rows ->
+            rows.map { r ->
+                ChapterCard(
+                    id = r.id,
+                    seriesId = r.series_id,
+                    sourceId = r.source_id,
+                    locator = r.locator,
+                    format = r.format,
+                    displayName = r.display_name,
+                    volume = r.volume,
+                    number = r.number,
+                    pageCount = r.page_count?.toInt(),
+                    lastPageIndex = r.last_page_index?.toInt() ?: 0,
+                    completed = r.completed == 1L,
+                )
+            }
+        }
+
+    /** Persist reading progress; drives resume, the unread badge, and the recently-read sort. */
+    suspend fun markProgress(chapterId: String, lastPageIndex: Int, completed: Boolean) =
+        withContext(ioDispatcher) {
+            q.upsertProgress(
+                chapter_id = chapterId,
+                last_page_index = lastPageIndex.toLong(),
+                completed = if (completed) 1 else 0,
+                updated_at = nowEpochMillis(),
+                device_id = null,
+            )
         }
 
     /** Persist the granted library root so it's remembered across restarts (PLAN.md §5 source table). */

@@ -3,7 +3,7 @@ package com.mangaread.core.reader
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import com.mangaread.core.domain.Chapter
-import com.mangaread.core.domain.ChapterFormat
+import com.mangaread.core.source.MangaSource
 
 /**
  * The reader's only seam (PLAN.md §8). The viewer knows nothing about format or
@@ -23,12 +23,7 @@ interface PageProvider {
 /** Decode target — drives downsampling (PLAN.md §8 memory strategy). */
 data class PageTarget(val maxWidthPx: Int, val maxHeightPx: Int)
 
-// Implementations land in Phase 2:
-// class ImageDirPageProvider(...) : PageProvider
-// class CbzPageProvider(...)      : PageProvider     // local-temp/range shim for non-RANDOM_ACCESS cloud (§11)
-// class PdfPageProvider(...)      : PageProvider     // deferred (§16) — the ONLY new file PDF needs
+// class PdfPageProvider(...) : PageProvider // deferred (§16) — the ONLY new file PDF needs
 
-fun pageProviderFor(chapter: Chapter): PageProvider = when (chapter.format) {
-    ChapterFormat.IMAGE_DIR -> TODO("ImageDirPageProvider — Phase 2")
-    ChapterFormat.CBZ -> TODO("CbzPageProvider — Phase 2")
-}
+/** Platform actual picks ImageDirPageProvider / CbzPageProvider by chapter.format. */
+expect fun pageProviderFor(chapter: Chapter, source: MangaSource): PageProvider

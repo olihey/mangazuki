@@ -86,6 +86,9 @@ ON CONFLICT(id) DO UPDATE SET
 selectAllSeries:
 SELECT * FROM series ORDER BY sort_title ASC;
 
+selectSeriesById:
+SELECT * FROM series WHERE id = ?;
+
 -- Library cards: each series with chapter count, read count, and newest chapter time.
 selectLibrary:
 SELECT
@@ -93,6 +96,7 @@ SELECT
   COUNT(DISTINCT c.id) AS chapter_count,
   COUNT(DISTINCT CASE WHEN p.completed = 1 THEN c.id END) AS read_count,
   MAX(c.date_added) AS latest_chapter_added,
+  MAX(p.updated_at) AS latest_read,
   cover.locator AS cover_locator,
   cover.format AS cover_format
 FROM series s
@@ -107,6 +111,14 @@ GROUP BY s.id;
 
 selectChaptersForSeries:
 SELECT * FROM chapter WHERE series_id = ? ORDER BY volume ASC, number ASC;
+
+-- Chapters for the series screen, with per-chapter read progress (§7.3).
+selectChaptersForSeriesWithProgress:
+SELECT c.*, p.last_page_index, p.completed
+FROM chapter c
+LEFT JOIN reading_progress p ON p.chapter_id = c.id
+WHERE c.series_id = ?
+ORDER BY c.volume IS NULL, c.volume, c.number IS NULL, c.number, c.display_name;
 
 -- Derived unread count drives hide-read and the cover badge (§7).
 unreadCountForSeries:

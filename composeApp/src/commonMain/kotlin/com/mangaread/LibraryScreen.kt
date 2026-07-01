@@ -1,6 +1,7 @@
 package com.mangaread
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,7 +51,7 @@ import com.mangaread.core.data.LibraryCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(viewModel: LibraryViewModel, onPickFolder: () -> Unit) {
+fun LibraryScreen(viewModel: LibraryViewModel, onPickFolder: () -> Unit, onSeriesClick: (String) -> Unit) {
     val progress by viewModel.progress.collectAsState()
     val canRescan by viewModel.canRescan.collectAsState()
     val needsReGrant by viewModel.needsReGrant.collectAsState()
@@ -93,9 +94,9 @@ fun LibraryScreen(viewModel: LibraryViewModel, onPickFolder: () -> Unit) {
             } else {
                 LibraryControls(viewModel, query, sort, ascending, unreadOnly)
                 when (viewMode) {
-                    ViewMode.LIST -> ListLayout(cards)
-                    ViewMode.GRID -> GridLayout(cards)
-                    ViewMode.DETAILED -> DetailedLayout(cards)
+                    ViewMode.LIST -> ListLayout(cards, onSeriesClick)
+                    ViewMode.GRID -> GridLayout(cards, onSeriesClick)
+                    ViewMode.DETAILED -> DetailedLayout(cards, onSeriesClick)
                 }
             }
         }
@@ -152,10 +153,11 @@ private fun LibraryControls(
 }
 
 @Composable
-private fun ListLayout(cards: List<LibraryCard>) {
+private fun ListLayout(cards: List<LibraryCard>, onSeriesClick: (String) -> Unit) {
     LazyColumn(Modifier.fillMaxSize()) {
         items(cards, key = { it.id }) { c ->
             ListItem(
+                modifier = Modifier.clickable { onSeriesClick(c.id) },
                 headlineContent = { Text(c.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 supportingContent = { Text("${c.chapterCount} chapters · ${c.unreadCount} unread") },
                 leadingContent = { CoverPlaceholder(c.title, Modifier.size(40.dp, 56.dp), c.coverModel) },
@@ -166,10 +168,13 @@ private fun ListLayout(cards: List<LibraryCard>) {
 }
 
 @Composable
-private fun DetailedLayout(cards: List<LibraryCard>) {
+private fun DetailedLayout(cards: List<LibraryCard>, onSeriesClick: (String) -> Unit) {
     LazyColumn(Modifier.fillMaxSize()) {
         items(cards, key = { it.id }) { c ->
-            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth().clickable { onSeriesClick(c.id) }.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 CoverPlaceholder(c.title, Modifier.size(64.dp, 90.dp), c.coverModel)
                 Column {
                     Text(c.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -183,7 +188,7 @@ private fun DetailedLayout(cards: List<LibraryCard>) {
 }
 
 @Composable
-private fun GridLayout(cards: List<LibraryCard>) {
+private fun GridLayout(cards: List<LibraryCard>, onSeriesClick: (String) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(165.dp),
         modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -191,7 +196,7 @@ private fun GridLayout(cards: List<LibraryCard>) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         gridItems(cards, key = { it.id }) { c ->
-            Column {
+            Column(Modifier.clickable { onSeriesClick(c.id) }) {
                 CoverPlaceholder(c.title, Modifier.fillMaxWidth().aspectRatio(0.7f), c.coverModel)
                 Text(c.title, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }

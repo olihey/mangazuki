@@ -67,11 +67,16 @@ class LibraryRepository(db: MangaDatabase) {
         }
 
     /**
-     * Records the chapter's real page count once counted on demand by the series screen (not at
-     * scan time), feeding the read-percentage overlay (PLAN.md §7.2).
+     * Records real page counts once counted on demand by the series screen (not at scan time),
+     * feeding the read-percentage overlay (PLAN.md §7.2). Batched in one transaction so a series
+     * with many chapters missing a count doesn't re-trigger observeChapters' reactive query (and
+     * a full-grid recomposition) once per chapter — SQLDelight coalesces query invalidation to
+     * fire once per transaction, not once per statement.
      */
-    suspend fun setChapterPageCount(chapterId: String, pageCount: Int) = withContext(ioDispatcher) {
-        q.updateChapterPageCount(pageCount.toLong(), chapterId)
+    suspend fun setChapterPageCounts(counts: List<Pair<String, Int>>) = withContext(ioDispatcher) {
+        q.transaction {
+            counts.forEach { (chapterId, pageCount) -> q.updateChapterPageCount(pageCount.toLong(), chapterId) }
+        }
     }
 
     /** Persist reading progress; drives resume, the unread badge, and the recently-read sort. */

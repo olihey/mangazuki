@@ -10,6 +10,7 @@ import com.mangaread.core.source.MangaSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 
 class SeriesViewModel(
     private val repository: LibraryRepository,
@@ -43,7 +45,13 @@ class SeriesViewModel(
      * archive, and a series can have hundreds of chapters missing a count after a fresh scan. */
     private val pageCountLimiter = Semaphore(4)
 
+    /** Counted results land here instead of writing straight to the DB per chapter — a series
+     * with hundreds of chapters missing a count would otherwise re-run observeChapters' reactive
+     * query (and recompose the whole grid) once per chapter as each finished. */
+    private val countedResults = Channel<Pair<String, Int>>(Channel.UNLIMITED)
+
     init {
+        scope.launch { batchWriteCounts() }
         scope.launch {
             chapters.collect { list ->
                 list.filter { it.pageCount == null && it.id !in pageCountAttempted }.forEach { chapter ->
@@ -108,10 +116,22 @@ class SeriesViewModel(
                 val provider = pageProviderFor(domainChapter, source)
                 val count = provider.pageCount
                 provider.close()
-                if (count > 0) repository.setChapterPageCount(chapter.id, count)
+                if (count > 0) countedResults.send(chapter.id to count)
             }
         } catch (t: Throwable) {
             // Best-effort — leave pageCount null; the read-percentage overlay just won't show.
+        }
+    }
+
+    /** Drains [countedResults] in small batches (one DB transaction each) instead of one write
+     * per chapter, so the tiles still update live without thrashing the reactive chapters query. */
+    private suspend fun batchWriteCounts() {
+        while (true) {
+            val batch = mutableListOf(countedResults.receive())
+            withTimeoutOrNull(200) {
+                while (true) batch += countedResults.receive()
+            }
+            repository.setChapterPageCounts(batch)
         }
     }
 }

@@ -61,9 +61,15 @@ class LibraryRepository(db: MangaDatabase) {
                     pageCount = r.page_count?.toInt(),
                     lastPageIndex = r.last_page_index?.toInt() ?: 0,
                     completed = r.completed == 1L,
+                    coverModel = coverModel(r.cover_path, r.format, r.locator),
                 )
             }
         }
+
+    /** Records a generated chapter cover so a re-scan can skip regenerating it (PLAN.md §9). */
+    suspend fun setChapterCoverPath(chapterId: String, path: String) = withContext(ioDispatcher) {
+        q.updateChapterCoverPath(path, chapterId)
+    }
 
     /** Persist reading progress; drives resume, the unread badge, and the recently-read sort. */
     suspend fun markProgress(chapterId: String, lastPageIndex: Int, completed: Boolean) =

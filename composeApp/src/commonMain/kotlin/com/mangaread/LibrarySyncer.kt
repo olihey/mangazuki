@@ -6,11 +6,13 @@ import com.mangaread.core.scanner.LibraryScanner
 
 /**
  * One scan pipeline shared by the foreground UI and the background worker: scan → persist each
- * series → prune anything not seen this run (add/update/remove reconcile, PLAN.md §5).
+ * series → generate/cache missing chapter covers → prune anything not seen this run (add/update/
+ * remove reconcile, PLAN.md §5, §9).
  */
 class LibrarySyncer(
     private val repository: LibraryRepository,
     private val scanner: LibraryScanner,
+    private val coverCache: ChapterCoverCache? = null,
 ) {
     /** Runs a full scan of [rootLocator]. [onProgress] is (seriesFound, chaptersFound). */
     suspend fun sync(rootLocator: String, onProgress: (Int, Int) -> Unit = { _, _ -> }) {
@@ -19,6 +21,12 @@ class LibrarySyncer(
         var chapters = 0
         scanner.scan(rootLocator, scanAt).collect { scanned ->
             repository.persistSeries(scanned.series, scanned.chapters)
+            if (coverCache != null) {
+                scanned.chapters.forEach { chapter ->
+                    // ensureCover is a no-op if the cached file already exists (§9).
+                    coverCache.ensureCover(chapter)?.let { path -> repository.setChapterCoverPath(chapter.id, path) }
+                }
+            }
             series++
             chapters += scanned.chapters.size
             onProgress(series, chapters)

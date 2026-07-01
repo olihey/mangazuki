@@ -32,4 +32,6 @@ data class ChapterCard(
     val pageCount: Int?,
     val lastPageIndex: Int,
     val completed: Boolean,
+    /** Cached first-page cover if generated, else the scheme-tagged locator fallback (§9). */
+    val coverModel: String?,
 )

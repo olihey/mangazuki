@@ -12,14 +12,17 @@ import coil3.request.Options
 import okio.Buffer
 import okio.BufferedSource
 import okio.FileSystem
+import okio.Path.Companion.toOkioPath
 import okio.buffer
 import okio.source
+import java.io.File
 import java.util.zip.ZipInputStream
 
 /**
- * Resolves a scheme-tagged cover model into image bytes (PLAN.md §9 "first page as cover"):
- *   "cbz:<uri>"    → first image entry inside the archive
- *   "imgdir:<uri>" → first image file in the folder
+ * Resolves a cover model into image bytes (PLAN.md §9 "first page as cover"):
+ *   "cbz:<uri>"    → first image entry inside the archive (not yet cached)
+ *   "imgdir:<uri>" → first image file in the folder (not yet cached)
+ *   anything else  → a cached app-internal file path (already-generated chapter/series cover)
  * Coil caches the result by the model string, so each cover is extracted once.
  */
 class CoverFetcher(
@@ -34,7 +37,7 @@ class CoverFetcher(
             val bytes: BufferedSource = when {
                 data.startsWith("cbz:") -> firstCbzImage(locator)
                 data.startsWith("imgdir:") -> firstFolderImage(locator)
-                else -> error("unsupported cover model: $data")
+                else -> FileSystem.SYSTEM.source(File(data).toOkioPath()).buffer()
             }
             return SourceFetchResult(
                 source = ImageSource(bytes, FileSystem.SYSTEM),

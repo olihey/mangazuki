@@ -8,19 +8,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -32,8 +33,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.mangaread.core.data.ChapterCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,10 +87,15 @@ fun SeriesScreen(
                     }
                 }
             }
-            LazyColumn(Modifier.fillMaxSize().padding(top = 8.dp)) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(140.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 chapters.groupBy { it.volume }.toSortedMap(compareBy { it ?: Double.MAX_VALUE }).forEach { (volume, vChapters) ->
                     if (volume != null) {
-                        item {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
                             VolumeHeader(
                                 volume = volume,
                                 selectionMode = selectionMode,
@@ -97,15 +105,13 @@ fun SeriesScreen(
                         }
                     }
                     items(vChapters, key = { it.id }) { chapter ->
-                        ChapterRow(
+                        ChapterCell(
                             chapter = chapter,
                             selectionMode = selectionMode,
                             selected = chapter.id in selectedIds,
                             onClick = { if (selectionMode) viewModel.toggleSelected(chapter.id) else onChapterClick(chapter.id) },
                             onLongClick = { if (!selectionMode) viewModel.enterSelectionMode(chapter.id) },
-                            onToggleRead = { viewModel.toggleRead(chapter) },
                         )
-                        HorizontalDivider()
                     }
                 }
             }
@@ -128,40 +134,75 @@ private fun VolumeHeader(volume: Double, selectionMode: Boolean, allSelected: Bo
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChapterRow(
+private fun ChapterCell(
     chapter: ChapterCard,
     selectionMode: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onToggleRead: () -> Unit,
 ) {
-    ListItem(
-        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        headlineContent = { Text(chapter.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = if (chapter.lastPageIndex > 0 && !chapter.completed) {
-            { Text("Page ${chapter.lastPageIndex + 1}") }
-        } else null,
-        leadingContent = if (selectionMode) {
-            { Checkbox(checked = selected, onCheckedChange = { onClick() }) }
-        } else null,
-        trailingContent = if (selectionMode) null else {
-            { ReadBadge(chapter, onToggleRead) }
-        },
-    )
+    Column(Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(0.7f)) {
+            ChapterCoverPlaceholder(chapter.displayName, Modifier.fillMaxSize(), chapter.coverModel)
+            ReadStatusOverlay(chapter, Modifier.align(Alignment.BottomEnd).padding(4.dp))
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onClick() }, modifier = Modifier.align(Alignment.TopEnd))
+            }
+        }
+        Text(
+            chapter.displayName,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
 }
 
-/** Unread → nothing; in progress → filled ring; finished → check disc (PLAN.md §7.2). */
 @Composable
-private fun ReadBadge(chapter: ChapterCard, onToggleRead: () -> Unit) {
+private fun ChapterCoverPlaceholder(title: String, modifier: Modifier, model: String?) {
     Box(
-        Modifier
-            .size(24.dp)
-            .clip(RoundedCornerShape(50))
-            .background(if (chapter.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onToggleRead),
+        modifier.clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        if (chapter.completed) Text("✓", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
+        Text(title.trim().take(1).uppercase(), style = MaterialTheme.typography.titleLarge)
+        if (model != null) {
+            AsyncImage(
+                model = MangaCover(model),
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+    }
+}
+
+/**
+ * Unread → nothing; in progress → percentage disc; finished → check disc (PLAN.md §7.2), as a
+ * corner overlay on the chapter cover.
+ */
+@Composable
+private fun ReadStatusOverlay(chapter: ChapterCard, modifier: Modifier = Modifier) {
+    val percent = chapter.pageCount?.takeIf { it > 0 }?.let { count ->
+        (((chapter.lastPageIndex + 1).coerceAtMost(count)) * 100 / count)
+    }
+    val label = when {
+        chapter.completed -> "✓"
+        percent != null && chapter.lastPageIndex > 0 -> "$percent%"
+        else -> null
+    } ?: return
+
+    Box(
+        modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (chapter.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.scrim.copy(alpha = 0.7f))
+            .padding(horizontal = 5.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = if (chapter.completed) MaterialTheme.colorScheme.onPrimary else androidx.compose.ui.graphics.Color.White,
+            style = MaterialTheme.typography.labelSmall,
+        )
     }
 }

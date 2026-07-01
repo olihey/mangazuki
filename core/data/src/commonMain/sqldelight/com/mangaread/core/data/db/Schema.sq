@@ -36,6 +36,7 @@ CREATE TABLE chapter (
   size         INTEGER,
   change_token TEXT,
   date_added   INTEGER NOT NULL,         -- drives "recently added"
+  cover_path   TEXT,                     -- cached first-page cover (app-internal storage, §9)
   FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE
 );
 
@@ -119,6 +120,11 @@ FROM chapter c
 LEFT JOIN reading_progress p ON p.chapter_id = c.id
 WHERE c.series_id = ?
 ORDER BY c.volume IS NULL, c.volume, c.number IS NULL, c.number, c.display_name;
+
+-- Cached first-page chapter cover; set once after scan-time generation, never cleared by upsert
+-- so a re-scan doesn't have to regenerate it.
+updateChapterCoverPath:
+UPDATE chapter SET cover_path = ? WHERE id = ?;
 
 -- Derived unread count drives hide-read and the cover badge (§7).
 unreadCountForSeries:

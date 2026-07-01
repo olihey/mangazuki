@@ -24,9 +24,10 @@ class LibraryViewModel(
     scanner: LibraryScanner,
     private val source: MangaSource,
     private val prefs: LibraryPreferences,
+    coverCache: ChapterCoverCache? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
-    private val syncer = LibrarySyncer(repository, scanner)
+    private val syncer = LibrarySyncer(repository, scanner, coverCache)
 
     private val _progress = MutableStateFlow<ScanProgress?>(null)
     val progress: StateFlow<ScanProgress?> = _progress

@@ -24,7 +24,8 @@ class ScanWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
         if (!source.canAccess(root)) return Result.success() // grant lost; UI will prompt re-grant
 
         return try {
-            LibrarySyncer(repository, LibraryScanner(source)).sync(root)
+            val coverCache = AndroidChapterCoverCache(applicationContext, source)
+            LibrarySyncer(repository, LibraryScanner(source), coverCache).sync(root)
             Result.success()
         } catch (t: Throwable) {
             android.util.Log.w("ScanWorker", "background scan failed", t)

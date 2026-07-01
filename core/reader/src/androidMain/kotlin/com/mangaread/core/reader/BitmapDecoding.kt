@@ -5,7 +5,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.ui.geometry.Size
 
 /** Downsample to the requested target (PLAN.md §8 memory strategy) instead of decoding full-res. */
-internal fun decodeSampled(bytes: ByteArray, maxWidthPx: Int, maxHeightPx: Int): Bitmap {
+fun decodeSampled(bytes: ByteArray, maxWidthPx: Int, maxHeightPx: Int): Bitmap {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     var sample = 1

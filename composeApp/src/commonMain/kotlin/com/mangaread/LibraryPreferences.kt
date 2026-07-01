@@ -9,10 +9,6 @@ import com.russhwolf.settings.Settings
  */
 class LibraryPreferences(private val settings: Settings) {
 
-    var viewMode: ViewMode
-        get() = settings.getStringOrNull(KEY_VIEW).toEnum(ViewMode.LIST)
-        set(value) = settings.putString(KEY_VIEW, value.name)
-
     var sort: SortMode
         get() = settings.getStringOrNull(KEY_SORT).toEnum(SortMode.NAME)
         set(value) = settings.putString(KEY_SORT, value.name)
@@ -29,7 +25,6 @@ class LibraryPreferences(private val settings: Settings) {
         this?.let { runCatching { enumValueOf<T>(it) }.getOrNull() } ?: default
 
     private companion object {
-        const val KEY_VIEW = "library.viewMode"
         const val KEY_SORT = "library.sort"
         const val KEY_ASC = "library.ascending"
         const val KEY_UNREAD = "library.unreadOnly"

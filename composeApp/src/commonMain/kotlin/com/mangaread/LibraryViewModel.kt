@@ -42,7 +42,9 @@ class LibraryViewModel(
     val sort = MutableStateFlow(prefs.sort)
     val ascending = MutableStateFlow(prefs.ascending)
     val unreadOnly = MutableStateFlow(prefs.unreadOnly)
-    val viewMode = MutableStateFlow(prefs.viewMode)
+    /** Always grid on a fresh launch, regardless of what was last used (cycleViewMode still
+     * switches within the session, it just isn't restored on restart). */
+    val viewMode = MutableStateFlow(ViewMode.GRID)
 
     /** Multi-select series for bulk mark read/unread (PLAN.md §7.5). */
     val selectionMode = MutableStateFlow(false)
@@ -70,7 +72,6 @@ class LibraryViewModel(
             _canRescan.value = root != null
             if (root != null && !source.canAccess(root)) _needsReGrant.value = true
         }
-        scope.launch { viewMode.collect { prefs.viewMode = it } }
         scope.launch { sort.collect { prefs.sort = it } }
         scope.launch { ascending.collect { prefs.ascending = it } }
         scope.launch { unreadOnly.collect { prefs.unreadOnly = it } }

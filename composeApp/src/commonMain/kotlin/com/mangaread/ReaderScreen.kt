@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -362,50 +361,51 @@ private fun ContinuousReader(
                 )
             },
         ) { scale, offset ->
-            // Zooming out should reveal more of the strip filling the screen, not shrink a fixed
-            // viewport's worth of already-laid-out content into a smaller floating rectangle with
-            // blank borders top and bottom — a LazyColumn only composes what its own measured
-            // height calls for, so a plain post-layout scale-down leaves the freed-up space empty
-            // instead of full of more (not-yet-composed) content. Giving it *more* virtual height
-            // to lay out into — exactly enough that scaling the taller result back down lands flush
-            // with the physical viewport — fixes that by construction. Zooming in is unaffected: it
-            // keeps the existing pan-while-scroll-disabled model, which has no such gap to begin
-            // with (there's always "more" to shrink toward, never less).
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                val columnHeight = if (scale < 1f) maxHeight / scale else maxHeight
-                LazyColumn(
-                    state = listState,
-                    userScrollEnabled = !isZoomedIn(scale),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .requiredHeight(columnHeight)
-                        .graphicsLayer(
-                            scaleX = scale,
-                            scaleY = scale,
-                            translationX = offset.x,
-                            translationY = if (scale < 1f) 0f else offset.y,
-                            transformOrigin = ZoomPivot,
-                        ),
-                ) {
-                    items(pageCount, key = { it }) { index ->
-                        WebtoonPage(
-                            pageModel = viewModel.pageModel,
-                            index = index,
-                            // Reserves the image's real height up front instead of measuring it as
-                            // zero/placeholder-sized until Coil decodes the bitmap — otherwise, as each
-                            // of many short images resolved its true (small) height, LazyColumn kept
-                            // remeasuring to keep the viewport filled and walked the scroll position
-                            // forward with no user input, landing on the last page on open.
-                            aspectRatio = pageAspectRatios[index],
-                        )
-                    }
-                    nextChapter?.let { next ->
-                        item(key = "next_chapter") {
-                            Box(
-                                Modifier.fillParentMaxSize().clickable { onNavigateToChapter(next.id) },
-                            ) {
-                                NextChapterPreview(next)
-                            }
+            // Zooming in scales the whole rendered column as one unit (graphicsLayer, panning via
+            // offset, scroll disabled) — the same model the paged modes use. Zooming out can't use
+            // that trick: shrinking a fixed-size already-laid-out column with a post-layout paint
+            // transform leaves the freed-up space blank, since a LazyColumn only ever composes
+            // enough items to fill its own measured height (an earlier attempt tried inflating that
+            // measured height and scaling back down, but Modifier.height silently coerces to the
+            // parent's real constraints, and even required Height would only reveal more content
+            // *below* the current scroll position, not distribute it around the gesture). Instead,
+            // when zoomed out, each page shrinks its own layout size (width, and — via aspectRatio —
+            // proportionally its height) via [WebtoonPage]'s widthFraction, so the LazyColumn just
+            // measures and scrolls a genuinely denser strip of smaller pages: no post-hoc scaling,
+            // no borders, and scroll position behaves exactly like normal scrolling because it is.
+            val zoomedIn = scale >= 1f
+            LazyColumn(
+                state = listState,
+                userScrollEnabled = !isZoomedIn(scale),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = if (zoomedIn) scale else 1f,
+                        scaleY = if (zoomedIn) scale else 1f,
+                        translationX = if (zoomedIn) offset.x else 0f,
+                        translationY = if (zoomedIn) offset.y else 0f,
+                        transformOrigin = ZoomPivot,
+                    ),
+            ) {
+                items(pageCount, key = { it }) { index ->
+                    WebtoonPage(
+                        pageModel = viewModel.pageModel,
+                        index = index,
+                        // Reserves the image's real height up front instead of measuring it as
+                        // zero/placeholder-sized until Coil decodes the bitmap — otherwise, as each
+                        // of many short images resolved its true (small) height, LazyColumn kept
+                        // remeasuring to keep the viewport filled and walked the scroll position
+                        // forward with no user input, landing on the last page on open.
+                        aspectRatio = pageAspectRatios[index],
+                        widthFraction = if (zoomedIn) 1f else scale,
+                    )
+                }
+                nextChapter?.let { next ->
+                    item(key = "next_chapter") {
+                        Box(
+                            Modifier.fillParentMaxSize().clickable { onNavigateToChapter(next.id) },
+                        ) {
+                            NextChapterPreview(next)
                         }
                     }
                 }
@@ -753,15 +753,19 @@ private fun ReaderPage(
 }
 
 /** One webtoon page: a plain image — zoom lives one level up, on the whole `LazyColumn`
- * (PLAN.md §8.1), so the strip scales as a seamless unit instead of only the touched page. */
+ * (PLAN.md §8.1), so the strip scales as a seamless unit instead of only the touched page.
+ * [widthFraction] shrinks (and, via [aspectRatio], proportionally shortens) the page itself when
+ * zoomed out, rather than visually scaling a fixed-size layout — see [ContinuousReader]. */
 @Composable
-private fun WebtoonPage(pageModel: String, index: Int, aspectRatio: Float) {
-    AsyncImage(
-        model = MangaPage(pageModel, index),
-        contentDescription = "Page ${index + 1}",
-        contentScale = ContentScale.FillWidth,
-        modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio),
-    )
+private fun WebtoonPage(pageModel: String, index: Int, aspectRatio: Float, widthFraction: Float) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        AsyncImage(
+            model = MangaPage(pageModel, index),
+            contentDescription = "Page ${index + 1}",
+            contentScale = ContentScale.FillWidth,
+            modifier = Modifier.fillMaxWidth(widthFraction).aspectRatio(aspectRatio),
+        )
+    }
 }
 
 @Composable

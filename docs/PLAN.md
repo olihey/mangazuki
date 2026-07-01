@@ -322,24 +322,28 @@ chrome, and the same pinch/double-tap zoom as the paged modes applies to the *wh
 once* (`Zoomable` wraps the `LazyColumn` itself, not each page — zooming only the touched page
 wouldn't be seamless with the rest of the continuous scroll) — zooming in disables the column's
 own scroll (`userScrollEnabled`) so a pan on the zoomed strip doesn't also scroll it. Zooming
-*out* has its own wrinkle: a `graphicsLayer(scaleY < 1)` shrinks whatever the `LazyColumn` already
-laid out, which leaves blank vertical borders top/bottom because a virtualized column only ever
-composes enough items to fill its *own* measured height — a post-layout scale-down can't
-retroactively compose more to fill the freed-up space. Fixed by wrapping the column in
-`BoxWithConstraints` and, whenever `scale < 1f`, giving it a taller-than-viewport height
-(`maxHeight / scale`) so it composes more of the strip; scaling that taller render back down by
-`scale` lands exactly flush with the physical viewport (`(maxHeight/scale) * scale == maxHeight`),
-so the strip always runs top-to-bottom with no gap. This requires `Modifier.requiredHeight`, not
-plain `height` — `height` still coerces to the incoming (viewport-sized) constraints from the
-parent `BoxWithConstraints`, silently capping the column back to `maxHeight` and defeating the
-whole trick; only `requiredHeight` actually lets the column measure taller than its parent so
-there's real content to reveal. (An earlier version used plain `height` and looked like it built,
-but the column was never actually taller — combined with pinning `translationY` to `0f`, that bug
-showed as the strip always anchored to the top of the screen with *all* of the leftover gap
-dumped at the bottom, instead of the gap disappearing.) Zoom-in isn't affected — there's always "more"
-to shrink toward there, never less, so the plain `graphicsLayer` scale-down was never a problem in
-that direction. (Horizontal letterboxing when zoomed out is left as-is — only the vertical gap
-was ever visible as a problem, since the column is already `fillMaxWidth`.) It does
+*out* uses a **different mechanism entirely** from zoom-in, not the same `graphicsLayer` scale
+applied to a bigger box: each `WebtoonPage` shrinks its *own* layout size (`widthFraction`, fed
+through `fillMaxWidth(widthFraction)` and, via the existing `aspectRatio`, proportionally its
+height too) instead of the whole column being painted smaller after the fact. The `LazyColumn`
+itself is untouched (`fillMaxSize()`, no scale, no translation) and just measures/scrolls a
+genuinely denser strip of smaller pages — so it fills the viewport top-to-bottom by construction,
+with no vertical border possible, and scroll behaves exactly like normal scrolling because it *is*
+normal scrolling (no forced pivot, no anchoring to the top of the screen). Two earlier attempts at
+a `graphicsLayer`-based version of zoom-out both failed for the same underlying reason (visually
+scaling a box after layout can't make already-decided-on content appear where there was none):
+first, giving the column a taller `Modifier.height` and scaling it back down — `height` silently
+coerces to the parent `BoxWithConstraints`' real constraints, so the column was never actually
+taller; then `Modifier.requiredHeight`, which does bypass the parent's constraints, but still only
+reveals more content *below* the current scroll position (a `LazyColumn`'s local `(0,0)` is always
+wherever it's currently scrolled to), so combined with pinning `translationY` to `0f` the strip
+was always anchored to the screen's top edge with the entire leftover gap dumped at the bottom.
+Shrinking each page's own layout size sidesteps all of this — there's nothing to "reveal" because
+nothing was ever inflated. Zoom-in isn't affected — there's always "more" to shrink toward there
+(the column is already fully composed at 1×), never less, so a plain `graphicsLayer` scale-down
+has always been fine in that direction. (Horizontal letterboxing when zoomed out is left as-is —
+each shrunk page is centered in its row via a `Box(contentAlignment = Alignment.Center)` wrapper —
+since only the vertical gap was ever reported as a problem.) It does
 share the next-chapter transition:
 scrolling past the last page reaches a `NextChapterPreview` list item sized to exactly one
 viewport (`fillParentMaxSize`), so scrolling it fully into view is simultaneously hitting the

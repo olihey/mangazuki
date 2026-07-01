@@ -359,6 +359,7 @@ private fun ContinuousReader(
                 onZoomChanged = {},
                 onGesture = { hasInteracted = true },
                 modifier = Modifier.fillMaxSize(),
+                freezeOffsetBelowOne = true,
                 tapGestures = { currentScale, applyZoom, resetZoom ->
                     detectTapGestures(
                         onDoubleTap = { pos ->
@@ -693,6 +694,14 @@ private fun Zoomable(
     // whose content isn't a simple graphicsLayer target (ContinuousReader shrinks pages' own
     // layout size instead) react to the transition itself, not just the resulting state.
     onScaleChange: (oldScale: Float, newScale: Float, centroid: Offset) -> Unit = { _, _, _ -> },
+    // ContinuousReader ignores offset entirely below 1x (that regime shrinks pages' own layout
+    // size instead), so letting it keep evolving there — off-screen, unseen — left it holding a
+    // stale, arbitrary value from wherever the fingers wandered while zoomed out. The instant a
+    // later pinch crossed back to zoomed-in and this content started reading offset again, the
+    // page would jump to that stale value instead of the fresh position a clean 1x crossing
+    // should start from. ReaderPage has no such split (it always uses offset, even below 1x, to
+    // pan the shrunk image smoothly per §8.1) so it keeps the default of never freezing it.
+    freezeOffsetBelowOne: Boolean = false,
     content: @Composable (scale: Float, offset: Offset) -> Unit,
 ) {
     // Keyed so zoom/pan resets when the pager moves to a different page (per-page usage) — the
@@ -707,7 +716,7 @@ private fun Zoomable(
     // 1x mid-gesture isn't asking to be recentered.
     fun applyZoom(newScale: Float, centroid: Offset, pan: Offset) {
         val coerced = newScale.coerceIn(MIN_ZOOM, MAX_ZOOM)
-        offset = zoomOffset(offset, scale, coerced, centroid, pan)
+        offset = if (freezeOffsetBelowOne && coerced < 1f) Offset.Zero else zoomOffset(offset, scale, coerced, centroid, pan)
         val old = scale
         scale = coerced
         onZoomChanged(isZoomedIn(scale))

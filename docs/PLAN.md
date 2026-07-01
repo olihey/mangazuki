@@ -356,7 +356,18 @@ zoom-in. Fixed by having `Zoomable` report every raw scale transition (`onScaleC
 the final `scale` value) to `ContinuousReader`, which recomputes the exact `(index, offset)` pair
 that keeps the *intrinsic* (scale = 1) content point under the centroid fixed — using its own
 prefix-sum of each page's natural pixel height from `pageAspectRatios` — and jumps `listState`
-straight there via `scrollToItem`, rather than trusting Compose's raw-pixel preservation. It does
+straight there via `scrollToItem`, rather than trusting Compose's raw-pixel preservation.
+
+A second, related bug surfaced starting a pinch *zoomed out* and reversing to zoom in: `offset`
+(the pan state `zoomOffset` maintains for the `graphicsLayer` path) kept evolving on every
+`applyZoom` call regardless of scale, even though `ContinuousReader` never reads it below 1× —
+it's pure dead weight there, ignored by the page-shrink rendering. But it doesn't reset itself,
+so by the time a pinch crossed back to ≥1× and the `graphicsLayer` path started reading it again,
+it held a stale value from wherever the fingers had wandered while zoomed out, and the page
+visibly snapped to it. Fixed with a `freezeOffsetBelowOne` flag on `Zoomable` (on for
+`ContinuousReader` only — `ReaderPage`'s single-image zoom-out still wants `offset` to pan
+smoothly, per below) that pins `offset` to `Offset.Zero` for the entire time scale stays below 1×,
+so the *first* crossing back up always starts from a clean baseline. It does
 share the next-chapter transition:
 scrolling past the last page reaches a `NextChapterPreview` list item sized to exactly one
 viewport (`fillParentMaxSize`), so scrolling it fully into view is simultaneously hitting the

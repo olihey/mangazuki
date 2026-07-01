@@ -2,7 +2,6 @@ package com.mangaread
 
 import com.mangaread.core.data.LibraryCard
 import com.mangaread.core.data.LibraryRepository
-import com.mangaread.core.data.RecentChapter
 import com.mangaread.core.scanner.LibraryScanner
 import com.mangaread.core.source.MangaSource
 import kotlinx.coroutines.CoroutineScope
@@ -59,9 +58,6 @@ class LibraryViewModel(
             }
             list.sortedWith(if (asc) comparator else comparator.reversed())
         }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val recent: StateFlow<List<RecentChapter>> =
-        repository.observeRecentlyAdded().stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
         scope.launch {

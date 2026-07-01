@@ -47,7 +47,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.mangaread.core.data.LibraryCard
-import com.mangaread.core.data.RecentChapter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,13 +55,11 @@ fun LibraryScreen(viewModel: LibraryViewModel, onPickFolder: () -> Unit) {
     val canRescan by viewModel.canRescan.collectAsState()
     val needsReGrant by viewModel.needsReGrant.collectAsState()
     val cards by viewModel.cards.collectAsState()
-    val recent by viewModel.recent.collectAsState()
     val query by viewModel.query.collectAsState()
     val sort by viewModel.sort.collectAsState()
     val ascending by viewModel.ascending.collectAsState()
     val unreadOnly by viewModel.unreadOnly.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
-    var showRecent by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -74,14 +71,11 @@ fun LibraryScreen(viewModel: LibraryViewModel, onPickFolder: () -> Unit) {
                             Text("Scanning… ${progress!!.seriesFound} series, ${progress!!.chaptersFound} chapters")
                         }
                     } else {
-                        Text(if (showRecent) "Recently added" else "Library (${cards.size})")
+                        Text("Library (${cards.size})")
                     }
                 },
                 actions = {
-                    TextButton(onClick = { showRecent = !showRecent }) { Text(if (showRecent) "Library" else "Recent") }
-                    if (!showRecent) {
-                        TextButton(onClick = viewModel::cycleViewMode) { Text(viewMode.name.lowercase().replaceFirstChar { it.uppercase() }) }
-                    }
+                    TextButton(onClick = viewModel::cycleViewMode) { Text(viewMode.name.lowercase().replaceFirstChar { it.uppercase() }) }
                     if (canRescan && progress == null) TextButton(onClick = viewModel::rescan) { Text("Re-scan") }
                 },
             )
@@ -92,19 +86,16 @@ fun LibraryScreen(viewModel: LibraryViewModel, onPickFolder: () -> Unit) {
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             if (needsReGrant) ReGrantBanner(onPickFolder)
-            when {
-                showRecent -> RecentLayout(recent)
-                cards.isEmpty() && progress == null && query.isBlank() && !needsReGrant ->
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No series yet — tap + to pick your manga folder.", Modifier.padding(24.dp))
-                    }
-                else -> {
-                    LibraryControls(viewModel, query, sort, ascending, unreadOnly)
-                    when (viewMode) {
-                        ViewMode.LIST -> ListLayout(cards)
-                        ViewMode.GRID -> GridLayout(cards)
-                        ViewMode.DETAILED -> DetailedLayout(cards)
-                    }
+            if (cards.isEmpty() && progress == null && query.isBlank() && !needsReGrant) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No series yet — tap + to pick your manga folder.", Modifier.padding(24.dp))
+                }
+            } else {
+                LibraryControls(viewModel, query, sort, ascending, unreadOnly)
+                when (viewMode) {
+                    ViewMode.LIST -> ListLayout(cards)
+                    ViewMode.GRID -> GridLayout(cards)
+                    ViewMode.DETAILED -> DetailedLayout(cards)
                 }
             }
         }
@@ -121,25 +112,6 @@ private fun ReGrantBanner(onPickFolder: () -> Unit) {
         ) {
             Text("Folder access was lost. Re-grant to keep your library updated.", modifier = Modifier.weight(1f))
             Button(onClick = onPickFolder) { Text("Re-grant") }
-        }
-    }
-}
-
-@Composable
-private fun RecentLayout(recent: List<RecentChapter>) {
-    if (recent.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Nothing added yet.", Modifier.padding(24.dp))
-        }
-        return
-    }
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(recent, key = { it.seriesTitle + "|" + it.chapterName }) { r ->
-            ListItem(
-                headlineContent = { Text(r.seriesTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                supportingContent = { Text(r.chapterName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            )
-            HorizontalDivider()
         }
     }
 }

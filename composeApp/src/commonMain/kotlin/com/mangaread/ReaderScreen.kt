@@ -566,18 +566,25 @@ private fun zoomOffset(offset: Offset, oldScale: Float, newScale: Float, centroi
 private const val MIN_ZOOM = 0.5f
 private const val MAX_ZOOM = 5f
 
-/** Whether [scale] has drifted from the default "fit" size in *either* direction — used to
- * gate tap-vs-pan dispatch and to disable the pager/column's own scroll while pinched out too,
- * not just while pinched in. */
+/** Whether [scale] has drifted from the default "fit" size in *either* direction — this is only
+ * the double-tap toggle's notion of "zoomed" (reset to fit vs jump to the 2.5x preset). */
 private fun isZoomed(scale: Float) = abs(scale - 1f) > 0.01f
+
+/** Whether [scale] is zoomed *in* specifically — gates pan-vs-scroll and tap-vs-navigate
+ * dispatch, and whether the pager/column's own scroll is disabled. Zooming *out* deliberately
+ * doesn't count: a shrunk page still scrolls/taps normally, it's just smaller on screen, so
+ * there's no reason to also lock the reader into a "must pinch back in first" mode. */
+private fun isZoomedIn(scale: Float) = scale > 1.01f
 
 /** Pinch/double-tap zoom shared by [ReaderPage] and [WebtoonPage]: scales/pans an [AsyncImage] in
  * a `graphicsLayer`, pivoting around wherever the gesture actually is via [zoomOffset] rather than
  * always around the screen's center. [onGesture] runs first on every pointer event (pinch or
  * plain drag) so callers can track "the user touched the reader" independent of whether a zoom
- * actually resulted; it only takes over the gesture for 2+ fingers or once already zoomed, so a
- * plain single-finger drag at scale 1 is left untouched to reach the pager's swipe or the
- * webtoon column's own scroll. */
+ * actually resulted; it only takes over the gesture for 2+ fingers or once already zoomed *in*,
+ * so a plain single-finger drag at scale ≤ 1 is left untouched to reach the pager's swipe or the
+ * webtoon column's own scroll — including right after zooming *out*, once fingers lift: releasing
+ * a pinch that shrank the page just recenters it in place rather than resetting to fit, so the
+ * page stays shrunk and normal scrolling keeps working. */
 @Composable
 private fun ZoomableImage(
     pageModel: String,
@@ -586,13 +593,8 @@ private fun ZoomableImage(
     onZoomChanged: (Boolean) -> Unit,
     onGesture: () -> Unit,
     modifier: Modifier,
-    // Webtoon-only (PLAN.md §8.1): releasing a pinch that shrank the page below "fit" animates
-    // straight back to it instead of leaving the strip shrunk and its own scroll disabled —
-    // there's no "inspect while shrunk" use case the way there is for zooming in, so the
-    // continuous-scroll feel should always come back once fingers lift.
-    snapBackWhenZoomedOut: Boolean = false,
     tapGestures: suspend PointerInputScope.(
-        zoomed: () -> Boolean,
+        scale: () -> Float,
         applyZoom: (Float, Offset, Offset) -> Unit,
         resetZoom: () -> Unit,
     ) -> Unit,
@@ -603,14 +605,14 @@ private fun ZoomableImage(
     val scope = rememberCoroutineScope()
 
     // Pinching continuously through scale 1 should feel seamless in either direction, so this
-    // never snaps offset back to zero on its own — only an explicit resetZoom() (double-tap, or
-    // snapBackWhenZoomedOut once fingers lift) recenters, since a pinch that happens to land
-    // near 1x mid-gesture isn't asking to be recentered.
+    // never snaps offset back on its own — only an explicit resetZoom() (double-tap) or
+    // recenter() (releasing a zoom-out) touches it, since a pinch that happens to pass through
+    // 1x mid-gesture isn't asking to be recentered.
     fun applyZoom(newScale: Float, centroid: Offset, pan: Offset) {
         val coerced = newScale.coerceIn(MIN_ZOOM, MAX_ZOOM)
         offset = zoomOffset(offset, scale, coerced, centroid, pan)
         scale = coerced
-        onZoomChanged(isZoomed(scale))
+        onZoomChanged(isZoomedIn(scale))
     }
 
     fun resetZoom() {
@@ -619,31 +621,31 @@ private fun ZoomableImage(
         onZoomChanged(false)
     }
 
-    // Animates scale/offset back to "fit", centered — used once fingers lift on a pinch that
-    // ended below 1x. A plain coroutine, not called from inside awaitPointerEventScope: that
-    // scope only permits a restricted set of suspend calls and animateTo isn't one of them.
-    fun animateSnapBack() {
-        val fromScale = scale
-        val fromOffset = offset
+    // Animates the offset (scale untouched) to whatever centers the current, still-shrunk scale
+    // within [size] — used once fingers lift on a pinch that ended below 1x, so a page stays at
+    // the size the user chose instead of springing back to fit. A plain coroutine, not called
+    // from inside awaitPointerEventScope: that scope only permits a restricted set of suspend
+    // calls and animateTo isn't one of them.
+    fun recenter(size: IntSize) {
+        val target = Offset(size.width * (1f - scale) / 2f, size.height * (1f - scale) / 2f)
+        val start = offset
         scope.launch {
             Animatable(0f).animateTo(1f, tween(200)) {
-                scale = fromScale + (1f - fromScale) * value
-                offset = fromOffset * (1f - value)
+                offset = start + (target - start) * value
             }
-            onZoomChanged(false)
         }
     }
 
     Box(
         modifier
-            .pointerInput(index) { tapGestures({ isZoomed(scale) }, ::applyZoom, ::resetZoom) }
+            .pointerInput(index) { tapGestures({ scale }, ::applyZoom, ::resetZoom) }
             .pointerInput(index) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     onGesture()
                     do {
                         val event = awaitPointerEvent()
-                        if (event.changes.size >= 2 || isZoomed(scale)) {
+                        if (event.changes.size >= 2 || isZoomedIn(scale)) {
                             val zoomChange = event.calculateZoom()
                             val panChange = event.calculatePan()
                             val centroid = event.calculateCentroid()
@@ -653,7 +655,7 @@ private fun ZoomableImage(
                             }
                         }
                     } while (event.changes.any { it.pressed })
-                    if (snapBackWhenZoomedOut && scale < 1f) animateSnapBack()
+                    if (scale < 1f) recenter(size)
                 }
             },
     ) {
@@ -690,13 +692,13 @@ private fun ReaderPage(
         onZoomChanged = onZoomChanged,
         onGesture = {},
         modifier = modifier,
-    ) { zoomed, applyZoom, resetZoom ->
+    ) { currentScale, applyZoom, resetZoom ->
         detectTapGestures(
             onDoubleTap = { pos ->
-                if (zoomed()) resetZoom() else applyZoom(2.5f, pos, Offset.Zero)
+                if (isZoomed(currentScale())) resetZoom() else applyZoom(2.5f, pos, Offset.Zero)
             },
             onTap = { pos ->
-                if (zoomed()) return@detectTapGestures // zoomed: taps pan, not navigate
+                if (isZoomedIn(currentScale())) return@detectTapGestures // zoomed in: taps pan, not navigate
                 onZoneTap(computeTapZone(pos, size, isRtl, invertTapZones, isVertical))
             },
         )
@@ -723,16 +725,15 @@ private fun WebtoonPage(
         onZoomChanged = onZoomChanged,
         onGesture = onInteracted,
         modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio),
-        snapBackWhenZoomedOut = true,
-    ) { zoomed, applyZoom, resetZoom ->
+    ) { currentScale, applyZoom, resetZoom ->
         detectTapGestures(
             onDoubleTap = { pos ->
                 onInteracted()
-                if (zoomed()) resetZoom() else applyZoom(2.5f, pos, Offset.Zero)
+                if (isZoomed(currentScale())) resetZoom() else applyZoom(2.5f, pos, Offset.Zero)
             },
             onTap = {
                 onInteracted()
-                if (!zoomed()) onTap()
+                if (!isZoomedIn(currentScale())) onTap()
             },
         )
     }

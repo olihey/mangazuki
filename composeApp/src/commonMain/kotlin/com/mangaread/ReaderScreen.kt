@@ -1,8 +1,11 @@
 package com.mangaread
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -37,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -261,10 +265,24 @@ private fun ReaderPage(
                     },
                 )
             }
+            // Only takes over for a real pinch (2+ fingers) or panning while already zoomed —
+            // a plain single-finger drag at scale 1 is untouched so it reaches the pager's own
+            // swipe-to-turn-page gesture instead of being consumed here.
             .pointerInput(index) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    applyScale(scale * zoom)
-                    if (scale > 1f) offset += pan
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        if (event.changes.size >= 2 || scale > 1f) {
+                            val zoomChange = event.calculateZoom()
+                            val panChange = event.calculatePan()
+                            if (zoomChange != 1f || panChange != Offset.Zero) {
+                                applyScale(scale * zoomChange)
+                                if (scale > 1f) offset += panChange
+                                event.changes.forEach { if (it.positionChanged()) it.consume() }
+                            }
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             },
     ) {

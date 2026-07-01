@@ -32,14 +32,6 @@ data class ChapterCard(
     val pageCount: Int?,
     val lastPageIndex: Int,
     val completed: Boolean,
-    /** Cached first-page cover if generated, else the scheme-tagged locator fallback (§9). */
+    /** Live-extracted cover via the scheme-tagged locator fallback (§9); generated on demand. */
     val coverModel: String?,
 )
-
-/**
- * Known scan-time state for one chapter, used to decide whether a re-scan can skip it entirely.
- * [changeToken] is the source's last-modified marker as of that prior scan (PLAN.md §9) — if the
- * freshly-scanned chapter's token differs, the file changed and needs regenerating even if a
- * cover/page-count were already recorded.
- */
-data class ChapterCoverState(val coverPath: String?, val pageCount: Int?, val changeToken: String?)

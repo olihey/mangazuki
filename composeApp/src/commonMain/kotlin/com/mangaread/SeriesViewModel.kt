@@ -2,7 +2,11 @@ package com.mangaread
 
 import com.mangaread.core.data.ChapterCard
 import com.mangaread.core.data.LibraryRepository
+import com.mangaread.core.domain.Chapter as DomainChapter
+import com.mangaread.core.domain.ChapterFormat
 import com.mangaread.core.domain.Series as DomainSeries
+import com.mangaread.core.reader.pageProviderFor
+import com.mangaread.core.source.MangaSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,6 +18,7 @@ import kotlinx.coroutines.launch
 
 class SeriesViewModel(
     private val repository: LibraryRepository,
+    private val source: MangaSource,
     val seriesId: String,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
@@ -27,6 +32,21 @@ class SeriesViewModel(
     /** Multi-select chapters for bulk read/unread (PLAN.md §7.5). */
     val selectionMode = MutableStateFlow(false)
     val selectedIds = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Chapter ids already counted or currently being counted, so [chapters] re-emitting after a
+     * write-back doesn't re-trigger the same chapter (PLAN.md §9: covers/counts are on-demand). */
+    private val pageCountAttempted = mutableSetOf<String>()
+
+    init {
+        scope.launch {
+            chapters.collect { list ->
+                list.filter { it.pageCount == null && it.id !in pageCountAttempted }.forEach { chapter ->
+                    pageCountAttempted += chapter.id
+                    scope.launch { countPages(chapter) }
+                }
+            }
+        }
+    }
 
     fun toggleRead(chapter: ChapterCard) {
         scope.launch {
@@ -59,6 +79,31 @@ class SeriesViewModel(
         scope.launch {
             repository.markChaptersProgress(entries, completed)
             exitSelectionMode()
+        }
+    }
+
+    /** Same PageProvider the reader uses, just to read `.pageCount` — cheap (entry names/dir
+     * listing only, no image bytes) and reuses the existing CBZ/image-dir abstraction directly. */
+    private suspend fun countPages(chapter: ChapterCard) {
+        val domainChapter = DomainChapter(
+            id = chapter.id,
+            seriesId = chapter.seriesId,
+            sourceId = chapter.sourceId,
+            locator = chapter.locator,
+            format = ChapterFormat.valueOf(chapter.format),
+            displayName = chapter.displayName,
+            volume = chapter.volume,
+            number = chapter.number,
+            pageCount = null,
+            dateAdded = 0L,
+        )
+        try {
+            val provider = pageProviderFor(domainChapter, source)
+            val count = provider.pageCount
+            provider.close()
+            if (count > 0) repository.setChapterPageCount(chapter.id, count)
+        } catch (t: Throwable) {
+            // Best-effort — leave pageCount null; the read-percentage overlay just won't show.
         }
     }
 }

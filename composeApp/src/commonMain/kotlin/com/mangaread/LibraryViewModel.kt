@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class ScanProgress(val seriesFound: Int, val chaptersFound: Int)
-data class CoverBackfillProgress(val done: Int, val total: Int)
 
 enum class SortMode(val label: String) { NAME("Name"), RECENTLY_ADDED("Recently added"), RECENTLY_READ("Recently read") }
 enum class ViewMode { LIST, GRID, DETAILED }
@@ -25,17 +24,12 @@ class LibraryViewModel(
     scanner: LibraryScanner,
     private val source: MangaSource,
     private val prefs: LibraryPreferences,
-    coverCache: ChapterCoverCache? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
-    private val syncer = LibrarySyncer(repository, scanner, coverCache)
+    private val syncer = LibrarySyncer(repository, scanner)
 
     private val _progress = MutableStateFlow<ScanProgress?>(null)
     val progress: StateFlow<ScanProgress?> = _progress
-
-    /** Chapter covers deferred by the scan itself, generating quietly afterward (PLAN.md §9). */
-    private val _backfillProgress = MutableStateFlow<CoverBackfillProgress?>(null)
-    val backfillProgress: StateFlow<CoverBackfillProgress?> = _backfillProgress
 
     private val _canRescan = MutableStateFlow(false)
     val canRescan: StateFlow<Boolean> = _canRescan
@@ -134,16 +128,6 @@ class LibraryViewModel(
             syncer.sync(rootLocator) { s, c -> _progress.value = ScanProgress(s, c) }
         } finally {
             _progress.value = null
-        }
-        // Fire-and-forget: per-chapter covers were deferred during the scan itself so the
-        // library shows up as soon as scanning is done, not once every chapter is cached.
-        // Still surfaced via backfillProgress so the UI can show it's not just idle.
-        scope.launch {
-            try {
-                syncer.backfillChapterCovers { done, total -> _backfillProgress.value = CoverBackfillProgress(done, total) }
-            } finally {
-                _backfillProgress.value = null
-            }
         }
     }
 }

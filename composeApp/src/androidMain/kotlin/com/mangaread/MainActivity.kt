@@ -47,11 +47,10 @@ class MainActivity : ComponentActivity() {
         val database = createMangaDatabase(DatabaseDriverFactory(applicationContext).create())
         val repository = LibraryRepository(database)
         val scanner = LibraryScanner(source)
-        val coverCache = AndroidChapterCoverCache(applicationContext, source)
         val prefs = LibraryPreferences(
             SharedPreferencesSettings(getSharedPreferences("manga_prefs", Context.MODE_PRIVATE)),
         )
-        viewModel = LibraryViewModel(repository, scanner, source, prefs, coverCache)
+        viewModel = LibraryViewModel(repository, scanner, source, prefs)
         val readerPrefs = ReaderPreferences(
             SharedPreferencesSettings(getSharedPreferences("manga_prefs", Context.MODE_PRIVATE)),
         )

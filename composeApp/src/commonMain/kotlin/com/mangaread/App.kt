@@ -25,7 +25,7 @@ fun App(graph: AppGraph, onPickFolder: () -> Unit) {
             }
             composable("series/{seriesId}") { entry ->
                 val seriesId = entry.arguments?.getString("seriesId") ?: return@composable
-                val viewModel = remember(seriesId) { SeriesViewModel(graph.repository, seriesId) }
+                val viewModel = remember(seriesId) { SeriesViewModel(graph.repository, graph.source, seriesId) }
                 SeriesScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },

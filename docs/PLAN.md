@@ -355,16 +355,20 @@ accessible and survives SAF/bookmark revocation — never store covers under a u
 root, which can disappear. User-override covers (designed-for, below) write to the same
 internal directory.
 
-**Chapter cover cache (built ahead of Phase 3, Android).** First-page chapter covers
-(`chapter.cover_path`, generated at scan time — see Phase 2 status below) are a separate,
-narrower case: they're regenerable at any time from the source file, so they live in the
-OS-purgeable **app cache dir** (`Context.cacheDir`), not app-internal storage. A scan checks
-the cached file's actual existence (not just the DB's `cover_path`) and re-generates it if the
-OS has reclaimed it. This distinction matters — don't "fix" it by moving them to `filesDir`.
-It also compares the source's last-modified `change_token` (captured *before* that scan's
-`persistSeries` overwrites it) against the prior scan's value, so a chapter file edited/replaced
-in place still gets its cover/page-count regenerated even though its `cover_path` never went
-missing.
+**Chapter covers (Android, ahead of Phase 3) are on-demand, not scan-time.** An eager
+scan-time pass generating/caching every chapter's first-page cover (with a dedicated
+`Context.cacheDir` file cache, change-token comparison, and a deferred-backfill queue) was
+tried and scrapped — too much moving machinery for what it bought, and the UI had no good way
+to show it was still working in the background. Chapter covers now render exactly like series
+covers already did before any of that: `ChapterCard.coverModel` falls back straight to the
+scheme-tagged locator (`"cbz:<uri>"` / `"imgdir:<uri>"`), and Coil's own `CoverFetcher` extracts
+the first page live, the moment the series screen actually asks for it — Coil's disk/memory
+cache means it's only extracted once per app lifetime per chapter, same as it always was for
+series covers. `chapter.cover_path` stays in the schema (nothing populates it now) in case a
+future need reintroduces a persisted cache; don't rebuild the eager version without a concrete
+reason to. Real page counts (for the read-percentage overlay, §7.2) are similarly counted on
+demand — `SeriesViewModel` reuses `core:reader`'s `pageProviderFor(...).pageCount` for any
+chapter missing one, once per series-screen visit, rather than during scan.
 
 ### 9.2 Enrichment pipeline & rate limiting
 

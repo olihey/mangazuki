@@ -66,27 +66,13 @@ class LibraryRepository(db: MangaDatabase) {
             }
         }
 
-    /** Records a generated chapter cover so a re-scan can skip regenerating it (PLAN.md §9). */
-    suspend fun setChapterCoverPath(chapterId: String, path: String) = withContext(ioDispatcher) {
-        q.updateChapterCoverPath(path, chapterId)
-    }
-
-    /** Records the chapter's real page count, feeding the read-percentage overlay (PLAN.md §7.2). */
+    /**
+     * Records the chapter's real page count once counted on demand by the series screen (not at
+     * scan time), feeding the read-percentage overlay (PLAN.md §7.2).
+     */
     suspend fun setChapterPageCount(chapterId: String, pageCount: Int) = withContext(ioDispatcher) {
         q.updateChapterPageCount(pageCount.toLong(), chapterId)
     }
-
-    /**
-     * Known cover/page-count state for every chapter of a series, one query per series (not per
-     * chapter) — lets a re-scan decide which chapters can skip cover generation entirely without
-     * touching the source at all (PLAN.md §9, scan performance).
-     */
-    suspend fun coverStatesForSeries(seriesId: String): Map<String, ChapterCoverState> =
-        withContext(ioDispatcher) {
-            q.selectCoverStatesForSeries(seriesId).executeAsList().associate { r ->
-                r.id to ChapterCoverState(r.cover_path, r.page_count?.toInt(), r.change_token)
-            }
-        }
 
     /** Persist reading progress; drives resume, the unread badge, and the recently-read sort. */
     suspend fun markProgress(chapterId: String, lastPageIndex: Int, completed: Boolean) =

@@ -121,20 +121,9 @@ LEFT JOIN reading_progress p ON p.chapter_id = c.id
 WHERE c.series_id = ?
 ORDER BY c.volume IS NULL, c.volume, c.number IS NULL, c.number, c.display_name;
 
--- Cached first-page chapter cover; set once after scan-time generation, never cleared by upsert
--- so a re-scan doesn't have to regenerate it.
-updateChapterCoverPath:
-UPDATE chapter SET cover_path = ? WHERE id = ?;
-
--- Real page count, counted at scan time (drives the read-percentage overlay, §7.2).
+-- Real page count, counted on demand by the series screen, not at scan time (§9, §7.2).
 updateChapterPageCount:
 UPDATE chapter SET page_count = ? WHERE id = ?;
-
--- Lets a re-scan skip cover generation AND page counting entirely, per chapter, once both are
--- already known AND the file hasn't changed since (change_token = source last-modified) — one
--- query per series, not per chapter. Called BEFORE persistSeries so it reflects the prior scan.
-selectCoverStatesForSeries:
-SELECT id, cover_path, page_count, change_token FROM chapter WHERE series_id = ?;
 
 -- Derived unread count drives hide-read and the cover badge (§7).
 unreadCountForSeries:

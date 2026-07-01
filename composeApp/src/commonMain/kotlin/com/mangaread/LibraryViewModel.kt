@@ -130,5 +130,8 @@ class LibraryViewModel(
         } finally {
             _progress.value = null
         }
+        // Fire-and-forget: per-chapter covers were deferred during the scan itself so the
+        // library shows up as soon as scanning is done, not once every chapter is cached.
+        scope.launch { syncer.backfillChapterCovers() }
     }
 }

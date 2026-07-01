@@ -25,7 +25,11 @@ class ScanWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
 
         return try {
             val coverCache = AndroidChapterCoverCache(applicationContext, source)
-            LibrarySyncer(repository, LibraryScanner(source), coverCache).sync(root)
+            val syncer = LibrarySyncer(repository, LibraryScanner(source), coverCache)
+            syncer.sync(root)
+            // Already running in the background, so there's no UI to unblock — finish the
+            // deferred per-chapter covers here instead of leaving them for next time.
+            syncer.backfillChapterCovers()
             Result.success()
         } catch (t: Throwable) {
             android.util.Log.w("ScanWorker", "background scan failed", t)

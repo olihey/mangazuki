@@ -28,13 +28,6 @@ class LibraryScanner(private val source: MangaSource) {
         // Skip hidden folders (e.g. Resilio's ".sync", ".thumbnails").
         for (dir in source.list(rootLocator).filter { it.isDirectory && !it.name.startsWith(".") }) {
             val seriesId = deterministicId(source.id, dir.locator)
-            val series = Series(
-                id = seriesId,
-                title = dir.name,
-                sortTitle = normalizeSortTitle(dir.name),
-                dateAdded = now,
-                lastScanned = now,
-            )
 
             val children = source.list(dir.locator)
             val chapterEntries = children.filter { it.isDirectory || it.name.isCbz() }
@@ -44,16 +37,32 @@ class LibraryScanner(private val source: MangaSource) {
                 chapterEntries.isEmpty() && directImages > 0 ->
                     listOf(imageDirChapter(seriesId, dir, dir.name, directImages, now))
 
-                else -> chapterEntries.map { entry ->
+                else -> chapterEntries.mapNotNull { entry ->
                     if (entry.isDirectory) {
                         val pages = source.list(entry.locator).count { it.name.isImage() }
-                        imageDirChapter(seriesId, entry, entry.name, pages, now)
+                        // A subfolder with no images isn't a chapter (e.g. an "Archive" folder).
+                        if (pages == 0) null else imageDirChapter(seriesId, entry, entry.name, pages, now)
                     } else {
                         cbzChapter(seriesId, entry, now)
                     }
                 }
             }
-            emit(ScannedSeries(series, chapters))
+
+            // Don't add a series with no chapters/volumes (empty or non-manga folders).
+            if (chapters.isEmpty()) continue
+
+            emit(
+                ScannedSeries(
+                    Series(
+                        id = seriesId,
+                        title = dir.name,
+                        sortTitle = normalizeSortTitle(dir.name),
+                        dateAdded = now,
+                        lastScanned = now,
+                    ),
+                    chapters,
+                ),
+            )
         }
     }
 

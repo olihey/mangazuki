@@ -34,18 +34,25 @@ class LibraryScannerTest {
     //   /Solo Leveling      -> chaper_1.cbz
     //   /OneShot            -> images directly (folder itself is the chapter)
     private val tree = mapOf(
-        "/root" to listOf(dir("/b", "Berserk"), dir("/sl", "Solo Leveling"), dir("/os", "OneShot")),
+        "/root" to listOf(
+            dir("/b", "Berserk"), dir("/sl", "Solo Leveling"), dir("/os", "OneShot"),
+            dir("/empty", "Empty"), dir("/noimg", "NoImages"),
+        ),
         "/b" to listOf(dir("/b/1", "Vol.01 Ch.001"), dir("/b/2", "Vol.01 Ch.002")),
         "/b/1" to listOf(file("/b/1/a", "001.png"), file("/b/1/b", "002.png")),
         "/b/2" to listOf(file("/b/2/a", "001.png")),
         "/sl" to listOf(file("/sl/c", "chaper_1.cbz")),
         "/os" to listOf(file("/os/a", "001.png"), file("/os/b", "002.png"), file("/os/c", "info.txt")),
+        "/empty" to emptyList(),                                   // no children at all
+        "/noimg" to listOf(dir("/noimg/x", "Archive")),            // subfolder, but no images
+        "/noimg/x" to listOf(file("/noimg/x/r", "readme.txt")),
     )
 
     @Test
     fun maps_folders_to_series_and_chapters() = runTest {
         val result = LibraryScanner(FakeSource(tree)).scan("/root", now = 100L).toList()
-        assertEquals(3, result.size, "three top-level folders -> three series")
+        assertEquals(3, result.size, "chapter-less folders (Empty, NoImages) are skipped")
+        assertEquals(setOf("Berserk", "Solo Leveling", "OneShot"), result.map { it.series.title }.toSet())
 
         val berserk = result.first { it.series.title == "Berserk" }
         assertEquals(2, berserk.chapters.size)

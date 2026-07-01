@@ -413,6 +413,19 @@ the source (`BufferedSource.inputStream()`) instead of buffering the entire arch
 `ByteArray` first — don't reintroduce that either; a 50MB CBZ shouldn't need a 50MB allocation
 just to enumerate its entries.
 
+**Reader `CbzPageProvider` DOES buffer the whole archive — that's a deliberate exception to the
+note above, not a regression.** The two call sites have opposite constraints: `SeriesViewModel`
+may be counting *many* chapters' page counts at once (bounded concurrency, but still several
+archives live), so streaming without buffering matters there. The reader only ever has *one*
+chapter open at a time, and `create()` now records each entry's byte offset during its single
+forward scan; `loadPage`/`pageSize` then seek straight to that offset in the buffered bytes
+instead of re-scanning from zero. Re-scanning per call used to make opening a big chapter
+**O(n²)** — `ReaderViewModel` probes `pageSize` for every page up front to build the
+spread-pairing list, so N pages meant N rescans of increasing depth. That quadratic blowup, not
+the buffering itself, was the real "opening a big volume takes forever" bug. If reader memory
+ever becomes the bottleneck instead (very large multi-chapter CBZs), revisit with a real
+central-directory index over a seekable file handle rather than reintroducing the O(n²) rescan.
+
 ### 9.2 Enrichment pipeline & rate limiting
 
 A first scan of a large library must not fire one AniList request per series in parallel —

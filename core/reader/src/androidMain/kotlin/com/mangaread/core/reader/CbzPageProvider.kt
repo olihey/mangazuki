@@ -5,6 +5,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.mangaread.core.source.MangaSource
 import okio.buffer
+import java.io.ByteArrayInputStream
+import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 
@@ -16,64 +18,78 @@ private fun String.isImageName(): Boolean =
  * end, so random access needs a seekable local handle; on a real cloud source (Phase 4)
  * this provider would need a local-temp copy first. Fine for LocalFileSource today.
  *
- * The entry list is resolved by [create] (suspend) rather than the constructor, so building a
- * provider never blocks a calling thread — a plain blocking constructor here previously froze
- * the caller (e.g. the series screen counting pages for many chapters at once) since opening
- * and scanning the archive is real I/O.
+ * [create] (suspend) reads the whole archive into memory ONCE — bounded, since only one
+ * chapter is ever open in the reader at a time (PLAN.md §13's 50MB worst-case CBZ) — and
+ * records each wanted entry's byte offset while doing the single forward pass needed to list
+ * them anyway. Every later [loadPage]/[pageSize] then seeks straight to that offset in the
+ * in-memory buffer instead of re-scanning from byte zero. Re-scanning per call used to make
+ * opening a big chapter O(n²) (`ReaderViewModel` probes `pageSize` for every page up front to
+ * build the spread-pairing list) — don't reintroduce that.
  */
 class CbzPageProvider private constructor(
-    private val entryNames: List<String>,
-    private val cbzLocator: String,
-    private val source: MangaSource,
+    private val bytes: ByteArray,
+    private val entries: List<IndexedEntry>,
 ) : PageProvider {
 
-    override val pageCount: Int get() = entryNames.size
+    private data class IndexedEntry(val name: String, val offset: Int)
+
+    override val pageCount: Int get() = entries.size
 
     override suspend fun loadPage(index: Int, target: PageTarget): ImageBitmap {
-        val bytes = readEntry(entryNames[index])
-        return decodeSampled(bytes, target.maxWidthPx, target.maxHeightPx).asImageBitmap()
+        val data = readEntryAt(entries[index].offset)
+        return decodeSampled(data, target.maxWidthPx, target.maxHeightPx).asImageBitmap()
     }
 
     override suspend fun pageSize(index: Int): Size {
-        val bytes = readEntry(entryNames[index])
-        return decodeBoundsSize(bytes)
+        val data = readEntryAt(entries[index].offset)
+        return decodeBoundsSize(data)
     }
 
     override fun close() {}
 
-    /** Re-scans the archive each call — ZipInputStream is forward-only; chapters are small. */
-    private suspend fun readEntry(name: String): ByteArray {
-        var result: ByteArray? = null
-        withZip(cbzLocator, source) { zis ->
-            var entry: ZipEntry? = zis.nextEntry
-            while (entry != null) {
-                if (entry.name == name) {
-                    result = zis.readBytes()
-                    break
-                }
-                entry = zis.nextEntry
-            }
+    /** O(1): the offset already points at that entry's local file header. */
+    private fun readEntryAt(offset: Int): ByteArray {
+        ZipInputStream(ByteArrayInputStream(bytes, offset, bytes.size - offset)).use { zis ->
+            zis.nextEntry ?: error("no zip entry at offset $offset")
+            return zis.readBytes()
         }
-        return result ?: error("entry $name not found in $cbzLocator")
     }
 
     companion object {
         suspend fun create(cbzLocator: String, source: MangaSource): CbzPageProvider {
-            val names = mutableListOf<String>()
-            withZip(cbzLocator, source) { zis ->
-                var entry: ZipEntry? = zis.nextEntry
-                while (entry != null) {
-                    if (!entry.isDirectory && entry.name.isImageName()) names += entry.name
-                    entry = zis.nextEntry
+            val bytes = source.open(cbzLocator).buffer().use { it.readByteArray() }
+            val entries = mutableListOf<IndexedEntry>()
+            val counted = CountingInputStream(ByteArrayInputStream(bytes))
+            ZipInputStream(counted).use { zis ->
+                while (true) {
+                    val offset = counted.count
+                    val entry: ZipEntry = zis.nextEntry ?: break
+                    if (!entry.isDirectory && entry.name.isImageName()) entries += IndexedEntry(entry.name, offset)
                 }
             }
-            return CbzPageProvider(names.sorted(), cbzLocator, source)
-        }
-
-        /** Streams straight from the source instead of buffering the whole archive into memory
-         * first — counting/scanning a 50MB CBZ shouldn't need a 50MB ByteArray to do it. */
-        private suspend fun withZip(cbzLocator: String, source: MangaSource, block: (ZipInputStream) -> Unit) {
-            ZipInputStream(source.open(cbzLocator).buffer().inputStream()).use(block)
+            return CbzPageProvider(bytes, entries.sortedBy { it.name })
         }
     }
+}
+
+/** Tracks bytes consumed so far, so the offset just before each `nextEntry()` call is that
+ * entry's local file header position in [bytes] — `getNextEntry()` skips any unread tail of
+ * the previous entry first, so this lands exactly right. */
+private class CountingInputStream(private val delegate: InputStream) : InputStream() {
+    var count = 0
+        private set
+
+    override fun read(): Int {
+        val b = delegate.read()
+        if (b != -1) count++
+        return b
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        val n = delegate.read(b, off, len)
+        if (n > 0) count += n
+        return n
+    }
+
+    override fun close() = delegate.close()
 }

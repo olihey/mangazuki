@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 class SeriesViewModel(
     private val repository: LibraryRepository,
@@ -36,6 +38,10 @@ class SeriesViewModel(
     /** Chapter ids already counted or currently being counted, so [chapters] re-emitting after a
      * write-back doesn't re-trigger the same chapter (PLAN.md §9: covers/counts are on-demand). */
     private val pageCountAttempted = mutableSetOf<String>()
+
+    /** Caps how many chapters get counted at once — counting a CBZ means reading the whole
+     * archive, and a series can have hundreds of chapters missing a count after a fresh scan. */
+    private val pageCountLimiter = Semaphore(4)
 
     init {
         scope.launch {
@@ -98,10 +104,12 @@ class SeriesViewModel(
             dateAdded = 0L,
         )
         try {
-            val provider = pageProviderFor(domainChapter, source)
-            val count = provider.pageCount
-            provider.close()
-            if (count > 0) repository.setChapterPageCount(chapter.id, count)
+            pageCountLimiter.withPermit {
+                val provider = pageProviderFor(domainChapter, source)
+                val count = provider.pageCount
+                provider.close()
+                if (count > 0) repository.setChapterPageCount(chapter.id, count)
+            }
         } catch (t: Throwable) {
             // Best-effort — leave pageCount null; the read-percentage overlay just won't show.
         }

@@ -25,5 +25,6 @@ data class PageTarget(val maxWidthPx: Int, val maxHeightPx: Int)
 
 // class PdfPageProvider(...) : PageProvider // deferred (§16) — the ONLY new file PDF needs
 
-/** Platform actual picks ImageDirPageProvider / CbzPageProvider by chapter.format. */
-expect fun pageProviderFor(chapter: Chapter, source: MangaSource): PageProvider
+/** Platform actual picks ImageDirPageProvider / CbzPageProvider by chapter.format. Suspends
+ * because resolving the page list is real I/O — never blocks the calling thread (PLAN.md §8). */
+expect suspend fun pageProviderFor(chapter: Chapter, source: MangaSource): PageProvider

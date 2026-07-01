@@ -370,6 +370,16 @@ reason to. Real page counts (for the read-percentage overlay, §7.2) are similar
 demand — `SeriesViewModel` reuses `core:reader`'s `pageProviderFor(...).pageCount` for any
 chapter missing one, once per series-screen visit, rather than during scan.
 
+**`pageProviderFor` is `suspend` — never make it blocking again.** `ImageDirPageProvider`/
+`CbzPageProvider` used to resolve their page list inside the constructor via `runBlocking`,
+which silently blocks whichever thread calls `pageProviderFor`. That was invisible with the
+reader (one chapter, one call) but froze the UI thread for the whole series-screen visit once
+`SeriesViewModel` started building a provider per chapter missing a page count — `Dispatchers.Main`
+is single-threaded, so each `runBlocking` call serialized behind the last. Fixed by moving list
+resolution into a `suspend fun create(...)` factory on each provider and making `pageProviderFor`
+itself `suspend`; `SeriesViewModel` also caps concurrent counts with a `Semaphore(4)` since
+counting a CBZ means reading the whole archive. Don't reintroduce a blocking constructor here.
+
 ### 9.2 Enrichment pipeline & rate limiting
 
 A first scan of a large library must not fire one AniList request per series in parallel —

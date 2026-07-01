@@ -5,21 +5,21 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.mangaread.core.source.MangaSource
 import com.mangaread.core.source.SourceEntry
-import kotlinx.coroutines.runBlocking
 import okio.buffer
 
 private fun String.isImageName(): Boolean =
     substringAfterLast('.', "").lowercase() in setOf("jpg", "jpeg", "png", "webp", "gif", "avif", "bmp")
 
-/** One chapter = a folder of naturally-sorted images (PLAN.md §11). */
-class ImageDirPageProvider(
-    private val dirLocator: String,
+/**
+ * One chapter = a folder of naturally-sorted images (PLAN.md §11). The page list is resolved by
+ * [create] (suspend) rather than the constructor, so building a provider never blocks a calling
+ * thread — a plain blocking constructor here previously froze the caller (e.g. the series screen
+ * counting pages for many chapters at once) since directory listing is real I/O.
+ */
+class ImageDirPageProvider private constructor(
+    private val pages: List<SourceEntry>,
     private val source: MangaSource,
 ) : PageProvider {
-
-    private val pages: List<SourceEntry> = runBlocking {
-        source.list(dirLocator).filter { !it.isDirectory && it.name.isImageName() }.sortedBy { it.name }
-    }
 
     override val pageCount: Int get() = pages.size
 
@@ -34,4 +34,11 @@ class ImageDirPageProvider(
     }
 
     override fun close() {}
+
+    companion object {
+        suspend fun create(dirLocator: String, source: MangaSource): ImageDirPageProvider {
+            val pages = source.list(dirLocator).filter { !it.isDirectory && it.name.isImageName() }.sortedBy { it.name }
+            return ImageDirPageProvider(pages, source)
+        }
+    }
 }

@@ -4,7 +4,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.mangaread.core.source.MangaSource
-import kotlinx.coroutines.runBlocking
 import okio.buffer
 import java.io.ByteArrayInputStream
 import java.util.zip.ZipEntry
@@ -17,13 +16,17 @@ private fun String.isImageName(): Boolean =
  * CBZ = sorted ZIP of images (PLAN.md §11). The archive's central directory sits at the
  * end, so random access needs a seekable local handle; on a real cloud source (Phase 4)
  * this provider would need a local-temp copy first. Fine for LocalFileSource today.
+ *
+ * The entry list is resolved by [create] (suspend) rather than the constructor, so building a
+ * provider never blocks a calling thread — a plain blocking constructor here previously froze
+ * the caller (e.g. the series screen counting pages for many chapters at once) since opening
+ * and scanning the archive is real I/O.
  */
-class CbzPageProvider(
+class CbzPageProvider private constructor(
+    private val entryNames: List<String>,
     private val cbzLocator: String,
     private val source: MangaSource,
 ) : PageProvider {
-
-    private val entryNames: List<String> = runBlocking { listImageEntries() }
 
     override val pageCount: Int get() = entryNames.size
 
@@ -39,22 +42,10 @@ class CbzPageProvider(
 
     override fun close() {}
 
-    private suspend fun listImageEntries(): List<String> {
-        val names = mutableListOf<String>()
-        withZip { zis ->
-            var entry: ZipEntry? = zis.nextEntry
-            while (entry != null) {
-                if (!entry.isDirectory && entry.name.isImageName()) names += entry.name
-                entry = zis.nextEntry
-            }
-        }
-        return names.sorted()
-    }
-
     /** Re-scans the archive each call — ZipInputStream is forward-only; chapters are small. */
     private suspend fun readEntry(name: String): ByteArray {
         var result: ByteArray? = null
-        withZip { zis ->
+        withZip(cbzLocator, source) { zis ->
             var entry: ZipEntry? = zis.nextEntry
             while (entry != null) {
                 if (entry.name == name) {
@@ -67,8 +58,22 @@ class CbzPageProvider(
         return result ?: error("entry $name not found in $cbzLocator")
     }
 
-    private suspend fun withZip(block: (ZipInputStream) -> Unit) {
-        val bytes = source.open(cbzLocator).buffer().use { it.readByteArray() }
-        ZipInputStream(ByteArrayInputStream(bytes)).use(block)
+    companion object {
+        suspend fun create(cbzLocator: String, source: MangaSource): CbzPageProvider {
+            val names = mutableListOf<String>()
+            withZip(cbzLocator, source) { zis ->
+                var entry: ZipEntry? = zis.nextEntry
+                while (entry != null) {
+                    if (!entry.isDirectory && entry.name.isImageName()) names += entry.name
+                    entry = zis.nextEntry
+                }
+            }
+            return CbzPageProvider(names.sorted(), cbzLocator, source)
+        }
+
+        private suspend fun withZip(cbzLocator: String, source: MangaSource, block: (ZipInputStream) -> Unit) {
+            val bytes = source.open(cbzLocator).buffer().use { it.readByteArray() }
+            ZipInputStream(ByteArrayInputStream(bytes)).use(block)
+        }
     }
 }

@@ -35,6 +35,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -42,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -232,13 +235,24 @@ private fun FixMetadataDialog(viewModel: SeriesViewModel) {
         title = { Text("Fix metadata") },
         text = {
             Column(Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = viewModel::searchMetadata,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Title") },
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = viewModel::updateMetadataQuery,
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("Title") },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(onClick = viewModel::clearMetadataQuery) { Text("✕") }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { viewModel.searchMetadata() }),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(onClick = viewModel::searchMetadata) { Text("Search") }
+                }
                 Spacer(Modifier.height(8.dp))
                 Box(Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 320.dp)) {
                     when {

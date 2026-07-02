@@ -93,15 +93,25 @@ class SeriesViewModel(
         metadataSearchQuery.value = series.value?.title ?: ""
         metadataSearchResults.value = emptyList()
         metadataSearchOpen.value = true
-        searchMetadata(metadataSearchQuery.value)
+        searchMetadata()
     }
 
     fun dismissMetadataSearch() {
         metadataSearchOpen.value = false
     }
 
-    fun searchMetadata(query: String) {
+    /** Just edits the field — the search only fires from [searchMetadata], not per keystroke. */
+    fun updateMetadataQuery(query: String) {
         metadataSearchQuery.value = query
+    }
+
+    fun clearMetadataQuery() {
+        metadataSearchQuery.value = ""
+        metadataSearchResults.value = emptyList()
+    }
+
+    fun searchMetadata() {
+        val query = metadataSearchQuery.value
         if (query.isBlank()) { metadataSearchResults.value = emptyList(); return }
         scope.launch {
             metadataSearchLoading.value = true

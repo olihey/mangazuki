@@ -279,23 +279,33 @@ Also on this screen: **Fix metadata** (§9.1) and entry into **selection mode** 
 **Header (Phase 3, once banners existed to show — §9's `bannerPath`).** `SeriesHeader` in
 `SeriesScreen.kt`: the AniList banner as a full-bleed backdrop (`bannerHeight = 150.dp`,
 `ContentScale.Crop`) fading into the screen background via a vertical gradient scrim, with the
-cover straddling the seam — partly over the banner, partly over the content below
-(`overlap = 56.dp` of the cover's `coverHeight = 154.dp` sits above the banner's bottom edge).
-Beside the cover: title (`displayTitle`, §9's language setting), author, and a status row —
-release year plus the AniList status as a colored dot + label (`statusPresentation`:
-Releasing/blue, Finished/green, Not yet released/orange, Hiatus/amber, Cancelled/red; matches
-the "colored text and icon" ask using the same plain-`Text`-glyph convention as the rest of the
-app's badges, §7.2, rather than pulling in a Material-icons dependency for one glyph).
-Description sits below, then the Continue button. Every field is optional and the header
-degrades gracefully for an unmatched series: no banner -> plain `surfaceVariant` backdrop, no
-cover -> empty placeholder box, no status/year -> the status row omits itself entirely, no
-author/description -> those lines just don't render. **Implementation note:** the overlap is
-built as absolute positioning inside one `Box` sized to `bannerHeight + coverHeight - overlap`,
-not the more obvious negative-`offset` + negative-`padding` combo — `Modifier.padding` throws
-`IllegalArgumentException` on a negative value at runtime (crashed on first on-device test),
-so don't reach for that trick here again. Verified on-device against both a matched series with
-a real banner (Dandadan) and a fully unmatched one (no external_id at all) to confirm the
-fallback path doesn't crash.
+cover (`coverWidth = 140.dp` x `coverHeight = 200.dp`) straddling the seam — partly over the
+banner, partly over the content below. The cover's gap into the banner and its gap to the right
+(before the title column) are the same value (`coverGap = 12.dp`), so it reads as evenly inset
+rather than off-center; `overlap = bannerHeight - coverGap` is how far the cover+title row is
+pulled up to make that true. Beside the cover: title (`displayTitle`, §9's language setting),
+author, and a status row — release year plus the AniList status as a colored dot + label
+(`statusPresentation`: Releasing/blue, Finished/green, Not yet released/orange, Hiatus/amber,
+Cancelled/red; matches the "colored text and icon" ask using the same plain-`Text`-glyph
+convention as the rest of the app's badges, §7.2, rather than pulling in a Material-icons
+dependency for one glyph). Description sits below, then the Continue button. Every field is
+optional and the header degrades gracefully: no banner -> plain `surfaceVariant` backdrop, no
+cover -> empty placeholder box, no status (year still present, e.g. a series matched before §9's
+status/genre/tag columns existed) -> the row shows just the year with no stray separator, no
+year at all -> the row omits itself entirely, no author/description -> those lines just don't
+render. **Implementation note:** the overlap is a custom layout modifier, `overlapAbove(overlap)`
+— it measures its content normally, then reports `overlap` less height to the parent and places
+the content `overlap` higher, so a sibling placed after it starts exactly where the shifted
+content visually ends. Two more obvious approaches were tried and rejected: negative-`offset` +
+negative-`padding` (`Modifier.padding` throws `IllegalArgumentException` on a negative value at
+runtime — crashed on the first on-device test) and a hand-computed fixed-height `Box` sized to
+`bannerHeight + coverHeight - overlap` (silently clipped the status line whenever the text
+column's real height exceeded that guess, since the guess was based on the cover's size, not the
+text's). `overlapAbove` sizes itself to whichever of the cover or the text column is actually
+taller, so neither bug can recur. Verified on-device against a matched series with a real banner
+and a full status row (Dandadan), a matched series with no banner and a partial status (year but
+no `status`, from before this column existed), and a fully unmatched series (no `external_id` at
+all) — no crash, no clipping, correct fallback in each case.
 
 ### 7.4 Responsive (phone → large tablet)
 

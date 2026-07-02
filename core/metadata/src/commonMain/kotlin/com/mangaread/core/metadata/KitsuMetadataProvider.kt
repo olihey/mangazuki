@@ -57,7 +57,10 @@ class KitsuMetadataProvider(
             append("filter[text]", title)
             append("page[limit]", "10")
         } ?: return emptyList()
-        return response.data.map { it.toRemoteWork() }
+        // Kitsu's /manga endpoint never returns anime, but its `subtype` is more granular than
+        // AniList's MANGA type (§9.3) — exclude the two that aren't "manga, webtoon, or light
+        // novel" (doujin: fan-made derivative works; oel: Original English Language work).
+        return response.data.filter { isSearchableSubtype(it.attributes.subtype) }.map { it.toRemoteWork() }
     }
 
     override suspend fun details(externalId: String): RemoteWorkDetails {
@@ -150,9 +153,16 @@ internal fun normalizeStatus(kitsuStatus: String?): String? = when (kitsuStatus)
  * doesn't distinguish manhwa/manhua from manga, so both fold into MANGA. */
 internal fun normalizeFormat(subtype: String?): String? = when (subtype) {
     "novel" -> "NOVEL"
+    "oneshot" -> "ONE_SHOT"
     "manga", "manhwa", "manhua", "oel", "doujin" -> "MANGA"
     else -> null
 }
+
+/** Search-result filter (§9.3): keeps manga/manhwa/manhua/novel/oneshot — the "manga, webtoon,
+ * or light novel" categories — and drops "doujin" (fan-made derivative works) and "oel"
+ * (Original English Language work), which aren't. An unrecognized future subtype is let
+ * through rather than silently hidden. */
+internal fun isSearchableSubtype(subtype: String?): Boolean = subtype != "doujin" && subtype != "oel"
 
 @Serializable private data class KitsuListResponse(val data: List<KitsuResource> = emptyList())
 

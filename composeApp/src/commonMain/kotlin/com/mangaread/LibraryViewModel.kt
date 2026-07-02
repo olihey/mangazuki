@@ -22,6 +22,13 @@ enum class SortMode(val label: String) {
 }
 enum class ViewMode { LIST, GRID, DETAILED }
 
+/** Library filter (PLAN.md §7.1): "Hide matched" is the AniList-match counterpart of "Hide
+ * read" — hides series that already have an `external_id`, for focusing on what Fix Metadata
+ * still needs to look at (PLAN.md §9.1). */
+enum class LibraryFilter(val label: String) {
+    SHOW_ALL("Show all"), HIDE_READ("Hide read"), HIDE_MATCHED("Hide matched")
+}
+
 class LibraryViewModel(
     private val repository: LibraryRepository,
     scanner: LibraryScanner,
@@ -52,7 +59,7 @@ class LibraryViewModel(
     val query = MutableStateFlow("")
     val sort = MutableStateFlow(prefs.sort)
     val ascending = MutableStateFlow(prefs.ascending)
-    val unreadOnly = MutableStateFlow(prefs.unreadOnly)
+    val filter = MutableStateFlow(prefs.filter)
     /** Always grid on a fresh launch, regardless of what was last used (cycleViewMode still
      * switches within the session, it just isn't restored on restart). */
     val viewMode = MutableStateFlow(ViewMode.GRID)
@@ -69,15 +76,19 @@ class LibraryViewModel(
         val query: String,
         val sortMode: SortMode,
         val ascending: Boolean,
-        val unreadOnly: Boolean,
+        val filter: LibraryFilter,
     )
 
     val cards: StateFlow<List<LibraryCard>> =
-        combine(allCards, query, sort, ascending, unreadOnly, ::FilterInputs)
+        combine(allCards, query, sort, ascending, filter, ::FilterInputs)
             .combine(appPreferences.titleLanguage) { inputs, titleLanguage ->
                 var list = inputs.cards
                 if (inputs.query.isNotBlank()) list = list.filter { it.title.contains(inputs.query, ignoreCase = true) }
-                if (inputs.unreadOnly) list = list.filter { it.unreadCount > 0 }
+                when (inputs.filter) {
+                    LibraryFilter.SHOW_ALL -> {}
+                    LibraryFilter.HIDE_READ -> list = list.filter { it.unreadCount > 0 }
+                    LibraryFilter.HIDE_MATCHED -> list = list.filter { it.externalId == null }
+                }
                 val comparator: Comparator<LibraryCard> = when (inputs.sortMode) {
                     // Sorts by whichever title is currently displayed (PLAN.md §9), not always
                     // the file name — normalized the same way `sort_title` is (§10) so ordering
@@ -100,7 +111,7 @@ class LibraryViewModel(
         }
         scope.launch { sort.collect { prefs.sort = it } }
         scope.launch { ascending.collect { prefs.ascending = it } }
-        scope.launch { unreadOnly.collect { prefs.unreadOnly = it } }
+        scope.launch { filter.collect { prefs.filter = it } }
     }
 
     fun onFolderPicked(rootLocator: String, displayName: String) {

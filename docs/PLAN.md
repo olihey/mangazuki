@@ -240,7 +240,11 @@ and a **hide-read** toggle.
 **Direction:** one asc/desc toggle beside the selector applies to the active sort, with
 the defaults above, each flippable.
 
-**Hide-read** = hide series whose derived unread count is 0.
+**Library filter** (`LibraryFilter`, a three-way dropdown replacing the original single "Hide
+read" toggle): **Show all**; **Hide read** = hide series whose derived unread count is 0; **Hide
+matched** = hide series that already have an AniList `external_id` (PLAN.md §9), the counterpart
+of "Hide read" for focusing on what "Fix metadata" (§9.1) still has left to look at. Persisted via
+`LibraryPreferences.filter` (defaults to Show all).
 
 ### 7.2 Cover progress badge
 

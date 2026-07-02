@@ -17,9 +17,9 @@ class LibraryPreferences(private val settings: Settings) {
         get() = settings.getBoolean(KEY_ASC, true)
         set(value) = settings.putBoolean(KEY_ASC, value)
 
-    var unreadOnly: Boolean
-        get() = settings.getBoolean(KEY_UNREAD, false)
-        set(value) = settings.putBoolean(KEY_UNREAD, value)
+    var filter: LibraryFilter
+        get() = settings.getStringOrNull(KEY_FILTER).toEnum(LibraryFilter.SHOW_ALL)
+        set(value) = settings.putString(KEY_FILTER, value.name)
 
     private inline fun <reified T : Enum<T>> String?.toEnum(default: T): T =
         this?.let { runCatching { enumValueOf<T>(it) }.getOrNull() } ?: default
@@ -27,6 +27,6 @@ class LibraryPreferences(private val settings: Settings) {
     private companion object {
         const val KEY_SORT = "library.sort"
         const val KEY_ASC = "library.ascending"
-        const val KEY_UNREAD = "library.unreadOnly"
+        const val KEY_FILTER = "library.filter"
     }
 }

@@ -24,7 +24,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
@@ -69,7 +68,7 @@ fun LibraryScreen(
     val query by viewModel.query.collectAsState()
     val sort by viewModel.sort.collectAsState()
     val ascending by viewModel.ascending.collectAsState()
-    val unreadOnly by viewModel.unreadOnly.collectAsState()
+    val filter by viewModel.filter.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val selectionMode by viewModel.selectionMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
@@ -121,7 +120,7 @@ fun LibraryScreen(
                     Text("No series yet — tap + to pick your manga folder.", Modifier.padding(24.dp))
                 }
             } else {
-                if (!selectionMode) LibraryControls(viewModel, query, sort, ascending, unreadOnly)
+                if (!selectionMode) LibraryControls(viewModel, query, sort, ascending, filter)
                 val onClick: (String) -> Unit = { id ->
                     if (selectionMode) viewModel.toggleSelected(id) else onSeriesClick(id)
                 }
@@ -181,7 +180,7 @@ private fun LibraryControls(
     query: String,
     sort: SortMode,
     ascending: Boolean,
-    unreadOnly: Boolean,
+    filter: LibraryFilter,
 ) {
     Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
         OutlinedTextField(
@@ -204,7 +203,17 @@ private fun LibraryControls(
                 }
             }
             TextButton(onClick = viewModel::toggleDirection) { Text(if (ascending) "↑ Asc" else "↓ Desc") }
-            FilterChip(selected = unreadOnly, onClick = { viewModel.unreadOnly.value = !unreadOnly }, label = { Text("Hide read") })
+            var filterOpen by remember { mutableStateOf(false) }
+            Box {
+                TextButton(onClick = { filterOpen = true }) { Text(filter.label) }
+                DropdownMenu(expanded = filterOpen, onDismissRequest = { filterOpen = false }) {
+                    LibraryFilter.entries.forEach { option ->
+                        DropdownMenuItem(text = { Text(option.label) }, onClick = {
+                            viewModel.filter.value = option; filterOpen = false
+                        })
+                    }
+                }
+            }
         }
     }
 }

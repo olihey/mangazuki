@@ -153,8 +153,8 @@ private fun SeriesHeader(
     // The cover's gap above it (into the banner) and its gap to the right (before the title
     // column) are the same value, so the cover reads as evenly inset rather than off-center.
     val coverGap = 12.dp
-    val coverWidth = 140.dp
-    val coverHeight = 200.dp
+    val coverWidth = 168.dp
+    val coverHeight = 240.dp
     // How far the cover+title row is pulled up into the banner, chosen so its remaining visible
     // gap above the cover equals coverGap — also exactly where the banner gives way to the solid
     // background, which is why the title column below is nudged down by the same amount.
@@ -184,9 +184,12 @@ private fun SeriesHeader(
             )
         }
         // overlapAbove shifts this row up into the banner and shrinks the space it reserves by
-        // the same amount, so the description below starts right where the row visually ends —
-        // sized to the row's real content instead of a hand-guessed fixed height (which clipped
-        // the status line when the text column ran taller than expected).
+        // the same amount, so the Continue button below starts right where the row visually
+        // ends — sized to the row's real content (cover vs. the text column, whichever is
+        // taller) instead of a hand-guessed fixed height. The description now lives inside the
+        // text column rather than as a separate full-width block, specifically so growing the
+        // cover keeps its bottom edge above the Continue button: both are governed by the same
+        // Row instead of the cover being able to run past an independently-placed sibling.
         Row(Modifier.fillMaxWidth().overlapAbove(overlap).padding(horizontal = 16.dp)) {
             Box(
                 Modifier
@@ -207,7 +210,7 @@ private fun SeriesHeader(
                 }
             }
             Spacer(Modifier.width(coverGap))
-            Column(Modifier.padding(top = overlap)) {
+            Column(Modifier.weight(1f).padding(top = overlap)) {
                 Text(
                     series.displayTitle(titleLanguage),
                     style = MaterialTheme.typography.titleLarge,
@@ -219,18 +222,17 @@ private fun SeriesHeader(
                     Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.height(6.dp))
-                SeriesStatusRow(series.status, series.startYear)
+                SeriesStatusRow(series.status, series.startYear, series.genres)
+                series.description?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 6,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-        }
-        series.description?.let {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                it,
-                Modifier.padding(horizontal = 16.dp),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
         if (nextUnread != null) {
             Spacer(Modifier.height(12.dp))
@@ -256,26 +258,38 @@ private fun Modifier.overlapAbove(overlap: Dp): Modifier = layout { measurable, 
     }
 }
 
-/** Release year + AniList status (§9) as a colored dot + label, e.g. "2021 · ● Releasing". */
+/** Release year + AniList status (§9) as a colored dot + label, plus the genre list — e.g.
+ * "2021 · ● Releasing · Action, Comedy, Drama". Genres share the row's remaining width and
+ * ellipsize rather than wrap, so a long genre list can't push the row onto a second line. */
 @Composable
-private fun SeriesStatusRow(status: String?, startYear: Int?) {
+private fun SeriesStatusRow(status: String?, startYear: Int?, genres: List<String>) {
     val presentation = statusPresentation(status)
-    if (presentation == null && startYear == null) return
+    if (presentation == null && startYear == null && genres.isEmpty()) return
+    val dotColor = MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically) {
         startYear?.let {
-            Text(it.toString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (presentation != null) {
-                Text(
-                    "   •   ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Text(it.toString(), style = MaterialTheme.typography.bodySmall, color = dotColor)
+            if (presentation != null || genres.isNotEmpty()) {
+                Text("   •   ", style = MaterialTheme.typography.bodySmall, color = dotColor)
             }
         }
         presentation?.let { (label, color) ->
             Text("●", color = color, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.width(4.dp))
             Text(label, color = color, style = MaterialTheme.typography.bodySmall)
+            if (genres.isNotEmpty()) {
+                Text("   •   ", style = MaterialTheme.typography.bodySmall, color = dotColor)
+            }
+        }
+        if (genres.isNotEmpty()) {
+            Text(
+                genres.joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                color = dotColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
         }
     }
 }

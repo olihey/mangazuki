@@ -279,33 +279,39 @@ Also on this screen: **Fix metadata** (§9.1) and entry into **selection mode** 
 **Header (Phase 3, once banners existed to show — §9's `bannerPath`).** `SeriesHeader` in
 `SeriesScreen.kt`: the AniList banner as a full-bleed backdrop (`bannerHeight = 150.dp`,
 `ContentScale.Crop`) fading into the screen background via a vertical gradient scrim, with the
-cover (`coverWidth = 140.dp` x `coverHeight = 200.dp`) straddling the seam — partly over the
+cover (`coverWidth = 168.dp` x `coverHeight = 240.dp`) straddling the seam — partly over the
 banner, partly over the content below. The cover's gap into the banner and its gap to the right
 (before the title column) are the same value (`coverGap = 12.dp`), so it reads as evenly inset
 rather than off-center; `overlap = bannerHeight - coverGap` is how far the cover+title row is
-pulled up to make that true. Beside the cover: title (`displayTitle`, §9's language setting),
-author, and a status row — release year plus the AniList status as a colored dot + label
-(`statusPresentation`: Releasing/blue, Finished/green, Not yet released/orange, Hiatus/amber,
-Cancelled/red; matches the "colored text and icon" ask using the same plain-`Text`-glyph
-convention as the rest of the app's badges, §7.2, rather than pulling in a Material-icons
-dependency for one glyph). Description sits below, then the Continue button. Every field is
-optional and the header degrades gracefully: no banner -> plain `surfaceVariant` backdrop, no
-cover -> empty placeholder box, no status (year still present, e.g. a series matched before §9's
-status/genre/tag columns existed) -> the row shows just the year with no stray separator, no
-year at all -> the row omits itself entirely, no author/description -> those lines just don't
-render. **Implementation note:** the overlap is a custom layout modifier, `overlapAbove(overlap)`
-— it measures its content normally, then reports `overlap` less height to the parent and places
-the content `overlap` higher, so a sibling placed after it starts exactly where the shifted
-content visually ends. Two more obvious approaches were tried and rejected: negative-`offset` +
+pulled up to make that true. Beside the cover, sharing the row's remaining width
+(`Modifier.weight(1f)` on the text column — needed once the genre list below could otherwise run
+past the true available width instead of ellipsizing at it): title (`displayTitle`, §9's language
+setting), author, a status row, and now the description too — moved from a separate full-width
+block into this column specifically so the Continue button (the next thing after this Row) can
+never land above the cover's bottom, no matter how tall the cover gets: both are sized by the
+same Row, whichever of the cover or the text column is taller. The status row shows the release
+year, the AniList status as a colored dot + label (`statusPresentation`: Releasing/blue,
+Finished/green, Not yet released/orange, Hiatus/amber, Cancelled/red — the same plain-`Text`-glyph
+convention as the rest of the app's badges, §7.2, rather than a Material-icons dependency for one
+glyph), and the genre list (comma-joined, `maxLines = 1` + ellipsis so a long list truncates
+instead of wrapping or overflowing). Every field is optional and the header degrades gracefully:
+no banner -> plain `surfaceVariant` backdrop, no cover -> empty placeholder box, no status/genres
+(e.g. a series matched before §9's status/genre/tag columns existed) -> the row shows just
+whatever it has with no stray separators, no author/description -> those lines just don't render.
+**Implementation note:** the overlap is a custom layout modifier, `overlapAbove(overlap)` — it
+measures its content normally, then reports `overlap` less height to the parent and places the
+content `overlap` higher, so a sibling placed after it starts exactly where the shifted content
+visually ends. Two more obvious approaches were tried and rejected: negative-`offset` +
 negative-`padding` (`Modifier.padding` throws `IllegalArgumentException` on a negative value at
 runtime — crashed on the first on-device test) and a hand-computed fixed-height `Box` sized to
 `bannerHeight + coverHeight - overlap` (silently clipped the status line whenever the text
 column's real height exceeded that guess, since the guess was based on the cover's size, not the
 text's). `overlapAbove` sizes itself to whichever of the cover or the text column is actually
-taller, so neither bug can recur. Verified on-device against a matched series with a real banner
-and a full status row (Dandadan), a matched series with no banner and a partial status (year but
-no `status`, from before this column existed), and a fully unmatched series (no `external_id` at
-all) — no crash, no clipping, correct fallback in each case.
+taller, so neither bug can recur regardless of how large the cover or how much metadata text
+grows. Verified on-device against a matched series with a real banner, full status row, and a
+6-genre list (Dandadan) and a matched series with no banner and a partial status (year but no
+`status`/genres, from before those columns existed) — no crash, no clipping, correct fallback in
+each case, cover bottom always above the Continue button.
 
 ### 7.4 Responsive (phone → large tablet)
 

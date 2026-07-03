@@ -13,7 +13,13 @@ interface MetadataProvider {
 
 data class RemoteWork(
     val externalId: String,
-    val title: String,
+    val title: String,          // preferred title: english ?: romaji ?: native
+    /** Per-language titles, so Fix Metadata's search results can respect the "series title"
+     * display setting (PLAN.md §9) instead of always showing [title]'s fixed pick. Null when
+     * the provider doesn't have that language for this result. */
+    val titleRomaji: String? = null,
+    val titleEnglish: String? = null,
+    val titleNative: String? = null,
     val coverUrl: String?,
     val startYear: Int?,
     /** Canonical format string, normalized to AniList's MediaFormat values (MANGA, NOVEL,

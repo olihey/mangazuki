@@ -104,6 +104,9 @@ class KitsuMetadataProvider(
 private fun KitsuResource.toRemoteWork() = RemoteWork(
     externalId = id,
     title = attributes.preferredTitle(),
+    titleRomaji = attributes.titles["en_jp"],
+    titleEnglish = attributes.titles["en_us"] ?: attributes.titles["en"],
+    titleNative = attributes.titles["ja_jp"] ?: attributes.titles["ko_kr"] ?: attributes.titles["zh_hans"],
     coverUrl = attributes.posterImage?.large,
     startYear = attributes.startYear(),
     format = normalizeFormat(attributes.subtype),

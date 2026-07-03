@@ -130,6 +130,9 @@ class AniListMetadataProvider(
 private fun MediaSummary.toRemoteWork() = RemoteWork(
     externalId = id.toString(),
     title = title.preferred(),
+    titleRomaji = title.romaji,
+    titleEnglish = title.english,
+    titleNative = title.native,
     coverUrl = coverImage?.large,
     startYear = startDate?.year,
     format = format,

@@ -74,7 +74,7 @@ fun SeriesScreen(
     val nextUnread = chapters.firstOrNull { !it.completed }
 
     if (metadataSearchOpen) {
-        FixMetadataDialog(viewModel)
+        FixMetadataDialog(viewModel, titleLanguage)
     }
 
     Scaffold(
@@ -363,7 +363,7 @@ private fun ReadStatusOverlay(chapter: ChapterCard, modifier: Modifier = Modifie
  * never changes the app-wide default in Settings. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FixMetadataDialog(viewModel: SeriesViewModel) {
+private fun FixMetadataDialog(viewModel: SeriesViewModel, titleLanguage: TitleLanguage) {
     val query by viewModel.metadataSearchQuery.collectAsState()
     val results by viewModel.metadataSearchResults.collectAsState()
     val loading by viewModel.metadataSearchLoading.collectAsState()
@@ -413,7 +413,7 @@ private fun FixMetadataDialog(viewModel: SeriesViewModel) {
                         )
                         else -> LazyColumn {
                             lazyItems(results, key = { it.externalId }) { work ->
-                                MetadataCandidateRow(work, onClick = { viewModel.applyMetadataMatch(work) })
+                                MetadataCandidateRow(work, titleLanguage, onClick = { viewModel.applyMetadataMatch(work) })
                             }
                         }
                     }
@@ -427,7 +427,8 @@ private fun FixMetadataDialog(viewModel: SeriesViewModel) {
 }
 
 @Composable
-private fun MetadataCandidateRow(work: RemoteWork, onClick: () -> Unit) {
+private fun MetadataCandidateRow(work: RemoteWork, titleLanguage: TitleLanguage, onClick: () -> Unit) {
+    val title = work.displayTitle(titleLanguage)
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -436,7 +437,7 @@ private fun MetadataCandidateRow(work: RemoteWork, onClick: () -> Unit) {
             if (work.coverUrl != null) {
                 AsyncImage(
                     model = work.coverUrl,
-                    contentDescription = work.title,
+                    contentDescription = title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.matchParentSize(),
                 )
@@ -444,7 +445,7 @@ private fun MetadataCandidateRow(work: RemoteWork, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(12.dp))
         Column {
-            Text(work.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FormatPill(work.format)
                 if (work.format != null && work.startYear != null) Spacer(Modifier.width(6.dp))

@@ -504,15 +504,19 @@ private fun SeriesReadStatusOverlay(card: LibraryCard, modifier: Modifier = Modi
 @Composable
 private fun MetadataStatusOverlay(card: LibraryCard, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 24.dp) {
     if (card.externalId != null) return
-    // Unmatched (never checked, or checked with no good candidate) — both read as "needs
-    // attention", so both use the same red as the status row's Cancelled dot (StatusRow.kt).
-    val symbol = if (card.metadataCheckedAt != null) "✕" else "?"
-    val color = androidx.compose.ui.graphics.Color(0xFFF44336)
+    // "?" (not checked yet) is a neutral pending state, not a problem — yellow, distinct from
+    // "✕" (checked, no good candidate found), which keeps the red also used for the status row's
+    // Cancelled dot (StatusRow.kt) so it doesn't read as "no match" before enrichment even ran.
+    val checked = card.metadataCheckedAt != null
+    val symbol = if (checked) "✕" else "?"
+    val color = if (checked) androidx.compose.ui.graphics.Color(0xFFF44336) else androidx.compose.ui.graphics.Color(0xFFFBC02D)
     Box(
         modifier.size(size).clip(RoundedCornerShape(50)).background(color),
         contentAlignment = Alignment.Center,
     ) {
-        Text(symbol, color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelSmall)
+        // White reads fine on the red "✕"; the yellow "?" needs a dark glyph for contrast.
+        val symbolColor = if (checked) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black
+        Text(symbol, color = symbolColor, style = MaterialTheme.typography.labelSmall)
     }
 }
 

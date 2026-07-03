@@ -15,6 +15,7 @@ import com.mangaread.core.data.createMangaDatabase
 import com.mangaread.core.metadata.AniListMetadataProvider
 import com.mangaread.core.metadata.KitsuMetadataProvider
 import com.mangaread.core.scanner.LibraryScanner
+import com.mangaread.core.sync.GoogleDriveSyncBackend
 import com.russhwolf.settings.SharedPreferencesSettings
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
@@ -22,9 +23,15 @@ import coil3.disk.DiskCache
 import coil3.key.Keyer
 import coil3.request.Options
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import okio.Path.Companion.toOkioPath
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
@@ -34,6 +41,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var viewModel: LibraryViewModel
     private lateinit var pickFolder: ActivityResultLauncher<Uri?>
     private lateinit var readerPrefs: ReaderPreferences
+    private lateinit var signIn: ActivityResultLauncher<Intent>
+    private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,9 +94,16 @@ class MainActivity : ComponentActivity() {
         readerPrefs = ReaderPreferences(
             SharedPreferencesSettings(getSharedPreferences("manga_prefs", Context.MODE_PRIVATE)),
         )
+
+        // Google Drive sync (PLAN.md §10) -- authManager is Android-only (AppAuth), so AppGraph
+        // (commonMain) only ever sees the resulting StateFlow, never the manager itself, the
+        // same reasoning as the SAF-specific pickFolder launcher below.
+        val authManager = createGoogleAuthManager(applicationContext)
+        val syncState = MutableStateFlow<SyncState>(if (authManager.isSignedIn()) SyncState.SignedIn else SyncState.SignedOut)
+
         val graph = AppGraph(
             repository, source, viewModel, readerPrefs, appPrefs,
-            metadataProviders, enricher, coverClient, coversDir,
+            metadataProviders, enricher, coverClient, coversDir, syncState,
         )
 
         pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -102,10 +118,50 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        signIn = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val data = result.data
+            if (data == null) {
+                syncState.value = SyncState.SignedOut
+                return@registerForActivityResult
+            }
+            activityScope.launch {
+                val outcome = authManager.handleSignInResult(data)
+                syncState.value = outcome.fold(
+                    onSuccess = { appPrefs.setSyncEnabled(true); SyncState.SignedIn },
+                    onFailure = { SyncState.Error(it.message ?: "Sign-in failed") },
+                )
+                if (outcome.isSuccess) {
+                    // Fire-and-forget immediate sync, same "don't make them wait for the next
+                    // scheduled background run" pattern as MetadataEnricher's foreground trigger.
+                    activityScope.launch {
+                        runCatching { ProgressSyncCoordinator(repository, GoogleDriveSyncBackend(authManager)).sync() }
+                    }
+                }
+            }
+        }
+
         scheduleBackgroundScan()
+        scheduleBackgroundSync()
 
         enableEdgeToEdge()
-        setContent { App(graph) { pickFolder.launch(null) } }
+        setContent {
+            App(
+                graph,
+                onPickFolder = { pickFolder.launch(null) },
+                onSignIn = {
+                    // AppAuth throws (not returns an error) building a request with a blank
+                    // client id -- guard explicitly rather than crash, since this is the normal
+                    // state until GOOGLE_OAUTH_CLIENT_ID is added to local.properties.
+                    if (BuildConfig.GOOGLE_OAUTH_CLIENT_ID.isBlank()) {
+                        syncState.value = SyncState.Error("Google sync isn't set up yet — see local.properties")
+                    } else {
+                        syncState.value = SyncState.SigningIn
+                        signIn.launch(authManager.signInIntent())
+                    }
+                },
+                onSignOut = { authManager.signOut(); appPrefs.setSyncEnabled(false); syncState.value = SyncState.SignedOut },
+            )
+        }
     }
 
     /** Volume-key paging while the reader is open (PLAN.md §8.1); consumed events skip the
@@ -129,5 +185,17 @@ class MainActivity : ComponentActivity() {
             .build()
         WorkManager.getInstance(applicationContext)
             .enqueueUniquePeriodicWork("library-scan", ExistingPeriodicWorkPolicy.KEEP, request)
+    }
+
+    /** Keep reading progress in sync in the background (PLAN.md §10; no-ops if signed out or
+     * sync is disabled -- see SyncWorker). A shorter interval and a network-only constraint
+     * (not battery-not-low) than the library scan -- a progress push/pull is small and quick,
+     * unlike a full rescan. */
+    private fun scheduleBackgroundSync() {
+        val request = PeriodicWorkRequestBuilder<SyncWorker>(6, TimeUnit.HOURS)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(applicationContext)
+            .enqueueUniquePeriodicWork("progress-sync", ExistingPeriodicWorkPolicy.KEEP, request)
     }
 }

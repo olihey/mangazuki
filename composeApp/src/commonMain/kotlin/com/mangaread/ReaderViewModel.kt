@@ -61,6 +61,7 @@ class ReaderViewModel(
     val seriesTitle: String,
     initialNextChapter: ChapterCard?,
     private val prefs: ReaderPreferences,
+    private val deviceId: String,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val pageModel: String = if (chapter.format == "CBZ") "cbz:${chapter.locator}" else "imgdir:${chapter.locator}"
@@ -155,6 +156,6 @@ class ReaderViewModel(
         currentPage.value = index
         val count = _pageCount.value
         val completed = count > 0 && index >= count - 1
-        scope.launch { repository.markProgress(chapter.id, index, completed) }
+        scope.launch { repository.markProgress(chapter.id, index, completed, deviceId) }
     }
 }

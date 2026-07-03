@@ -3,6 +3,7 @@ package com.mangaread
 import com.mangaread.core.data.LibraryRepository
 import com.mangaread.core.source.MangaSource
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.flow.StateFlow
 
 /** The small set of shared singletons screens below the library need (PLAN.md §4). */
 class AppGraph(
@@ -16,4 +17,8 @@ class AppGraph(
     /** Shared with [MetadataEnricher] — Fix Metadata (§9.1) downloads covers the same way. */
     val coverClient: HttpClient,
     val coversDir: String,
+    /** Google Drive sign-in status (PLAN.md §10) — the actual sign-in/sign-out actions are
+     * plain callbacks passed into [App], not held here, since triggering them needs an Android
+     * `Activity`/`Intent` (the same reason `onPickFolder` is a callback, not a stored field). */
+    val syncState: StateFlow<SyncState>,
 )

@@ -89,7 +89,7 @@ class SeriesViewModel(
         scope.launch {
             val nowCompleted = !chapter.completed
             val lastPage = if (nowCompleted) (chapter.pageCount ?: 1) - 1 else 0
-            repository.markProgress(chapter.id, lastPage.coerceAtLeast(0), nowCompleted)
+            repository.markProgress(chapter.id, lastPage.coerceAtLeast(0), nowCompleted, appPreferences.deviceId)
         }
     }
 
@@ -179,7 +179,7 @@ class SeriesViewModel(
     fun markSelectedRead(completed: Boolean) {
         val entries = chapters.value.filter { it.id in selectedIds.value }.map { it.id to it.pageCount }
         scope.launch {
-            repository.markChaptersProgress(entries, completed)
+            repository.markChaptersProgress(entries, completed, appPreferences.deviceId)
             exitSelectionMode()
         }
     }

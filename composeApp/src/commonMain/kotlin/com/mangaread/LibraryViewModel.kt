@@ -235,7 +235,7 @@ class LibraryViewModel(
     fun markSelectedRead(completed: Boolean) {
         val ids = selectedIds.value.toList()
         scope.launch {
-            repository.markSeriesProgress(ids, completed)
+            repository.markSeriesProgress(ids, completed, appPreferences.deviceId)
             exitSelectionMode()
         }
     }

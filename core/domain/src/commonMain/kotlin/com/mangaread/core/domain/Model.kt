@@ -72,3 +72,22 @@ data class ReadingProgress(
     val updatedAt: Long,         // recently-read sort AND sync last-write-wins
     val deviceId: String? = null,
 )
+
+/**
+ * One chapter's progress plus its cross-device sync identity (PLAN.md §10) -- deliberately
+ * plain-primitive-typed (no `core:sync` types here) so `core:data` doesn't need a dependency
+ * on `core:sync`; `composeApp`'s `ProgressSyncCoordinator` converts this to/from
+ * `core.sync.ProgressRecord` at the boundary, the same way a `MetadataProvider` converts its
+ * own DTOs to/from `RemoteWork`.
+ */
+data class SyncProgressRow(
+    val provider: String?,        // series.metadata_provider: "ANILIST" | "KITSU" | null
+    val externalId: String?,      // series.external_id
+    val normalizedTitle: String,  // series.sort_title (frozen normalization, §10)
+    val volume: Double?,
+    val number: Double?,
+    val completed: Boolean,
+    val lastPageIndex: Int,
+    val updatedAt: Long,
+    val deviceId: String?,
+)

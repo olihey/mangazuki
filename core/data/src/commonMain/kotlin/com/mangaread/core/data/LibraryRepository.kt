@@ -9,6 +9,7 @@ import com.mangaread.core.domain.ReadingDirection
 import com.mangaread.core.domain.Series as DomainSeries
 import com.mangaread.core.domain.ioDispatcher
 import com.mangaread.core.domain.nowEpochMillis
+import com.mangaread.core.domain.SyncProgressRow
 import com.mangaread.core.metadata.RemoteWorkDetails
 import com.mangaread.core.data.db.Series as SeriesRow
 import kotlinx.coroutines.flow.Flow
@@ -88,40 +89,96 @@ class LibraryRepository(db: MangaDatabase) {
         }
     }
 
-    /** Persist reading progress; drives resume, the unread badge, and the recently-read sort. */
-    suspend fun markProgress(chapterId: String, lastPageIndex: Int, completed: Boolean) =
+    /** Persist reading progress; drives resume, the unread badge, and the recently-read sort.
+     * [deviceId] tags the write for cross-device sync's merge tiebreak (PLAN.md §10) — never
+     * used to decide *whether* to write, only carried through for a later merge to read. */
+    suspend fun markProgress(chapterId: String, lastPageIndex: Int, completed: Boolean, deviceId: String) =
         withContext(ioDispatcher) {
             q.upsertProgress(
                 chapter_id = chapterId,
                 last_page_index = lastPageIndex.toLong(),
                 completed = if (completed) 1 else 0,
                 updated_at = nowEpochMillis(),
-                device_id = null,
+                device_id = deviceId,
             )
         }
 
     /** Bulk mark/unmark specific chapters (PLAN.md §7.5 series-screen selection). */
-    suspend fun markChaptersProgress(chapters: List<Pair<String, Int?>>, completed: Boolean) =
+    suspend fun markChaptersProgress(chapters: List<Pair<String, Int?>>, completed: Boolean, deviceId: String) =
         withContext(ioDispatcher) {
             val now = nowEpochMillis()
             q.transaction {
                 chapters.forEach { (chapterId, pageCount) ->
                     val lastPage = if (completed) ((pageCount ?: 1) - 1).coerceAtLeast(0) else 0
-                    q.upsertProgress(chapterId, lastPage.toLong(), if (completed) 1 else 0, now, null)
+                    q.upsertProgress(chapterId, lastPage.toLong(), if (completed) 1 else 0, now, deviceId)
                 }
             }
         }
 
     /** Bulk mark/unmark every chapter of the given series (PLAN.md §7.5 library selection). */
-    suspend fun markSeriesProgress(seriesIds: List<String>, completed: Boolean) = withContext(ioDispatcher) {
+    suspend fun markSeriesProgress(seriesIds: List<String>, completed: Boolean, deviceId: String) = withContext(ioDispatcher) {
         val now = nowEpochMillis()
         q.transaction {
             seriesIds.forEach { seriesId ->
                 q.selectChaptersForSeries(seriesId).executeAsList().forEach { c ->
                     val lastPage = if (completed) ((c.page_count ?: 1L) - 1).coerceAtLeast(0) else 0L
-                    q.upsertProgress(c.id, lastPage, if (completed) 1 else 0, now, null)
+                    q.upsertProgress(c.id, lastPage, if (completed) 1 else 0, now, deviceId)
                 }
             }
+        }
+    }
+
+    /**
+     * Resolves a cross-device sync key (PLAN.md §10) to the local chapter it corresponds to,
+     * or null if this device hasn't scanned that file (yet, or ever). Tries the matched-provider
+     * identity first, falling back to the frozen normalized title (case 3 of the design).
+     */
+    suspend fun resolveLocalChapterId(
+        provider: String?,
+        externalId: String?,
+        normalizedTitle: String,
+        volume: Double?,
+        number: Double?,
+    ): String? = withContext(ioDispatcher) {
+        if (provider != null && externalId != null) {
+            q.selectChapterIdByProviderKey(provider, externalId, volume, number).executeAsOneOrNull()?.let { return@withContext it }
+        }
+        q.selectChapterIdByTitleKey(normalizedTitle, volume, number).executeAsOneOrNull()
+    }
+
+    /**
+     * Applies a synced winner (PLAN.md §10) unless the local row is already at least as new --
+     * a stale remote record must never clobber a fresher local write. Done as a Kotlin-side
+     * read-then-conditional-write inside one transaction, rather than a SQL `WHERE` clause on
+     * `DO UPDATE`: that syntax needs SQLite 3.35+, not guaranteed at this project's minSdk 26
+     * (`core/data/build.gradle.kts` pins SQLDelight's dialect to 3.24, and there's no bundled
+     * modern-SQLite dependency to guarantee a newer runtime version).
+     */
+    suspend fun applyProgressIfNewer(chapterId: String, lastPageIndex: Int, completed: Boolean, updatedAt: Long, deviceId: String) =
+        withContext(ioDispatcher) {
+            q.transaction {
+                val currentUpdatedAt = q.selectProgressUpdatedAt(chapterId).executeAsOneOrNull()
+                if (currentUpdatedAt == null || updatedAt > currentUpdatedAt) {
+                    q.upsertProgress(chapterId, lastPageIndex.toLong(), if (completed) 1 else 0, updatedAt, deviceId)
+                }
+            }
+        }
+
+    /** Every chapter this device has any reading progress for, with its sync identity attached
+     * (PLAN.md §10) — the local half of a merge pass. */
+    suspend fun allProgressForSync(): List<SyncProgressRow> = withContext(ioDispatcher) {
+        q.selectAllProgressForSync().executeAsList().map {
+            SyncProgressRow(
+                provider = it.metadata_provider,
+                externalId = it.external_id,
+                normalizedTitle = it.sort_title,
+                volume = it.volume,
+                number = it.number,
+                completed = it.completed == 1L,
+                lastPageIndex = it.last_page_index.toInt(),
+                updatedAt = it.updated_at,
+                deviceId = it.device_id,
+            )
         }
     }
 

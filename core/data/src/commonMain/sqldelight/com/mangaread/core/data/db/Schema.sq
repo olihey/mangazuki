@@ -218,3 +218,33 @@ ON CONFLICT(chapter_id) DO UPDATE SET
   completed = excluded.completed,
   updated_at = excluded.updated_at,
   device_id = excluded.device_id;
+
+-- Cross-device sync (PLAN.md §10): resolve a synced key back to the local chapter it
+-- corresponds to, if this device has scanned that file. Primary path -- the matched-provider
+-- identity ("IS ?" rather than "= ?" so a NULL volume/number, common for a flat chapter list,
+-- still matches instead of every comparison going unknown).
+selectChapterIdByProviderKey:
+SELECT c.id FROM chapter c JOIN series s ON s.id = c.series_id
+WHERE s.metadata_provider = :provider AND s.external_id = :externalId
+  AND c.volume IS :volume AND c.number IS :number;
+
+-- Fallback path: the frozen normalized title (already `sort_title`, case 3 of the design).
+selectChapterIdByTitleKey:
+SELECT c.id FROM chapter c JOIN series s ON s.id = c.series_id
+WHERE s.sort_title = :normalizedTitle AND c.volume IS :volume AND c.number IS :number;
+
+-- The one column needed to guard against a stale synced record clobbering a fresher local
+-- write (PLAN.md §10) -- done as a Kotlin-side read-then-conditional-write rather than a SQL
+-- `WHERE` on `DO UPDATE` (that needs SQLite 3.35+, not guaranteed at this project's minSdk).
+selectProgressUpdatedAt:
+SELECT updated_at FROM reading_progress WHERE chapter_id = ?;
+
+-- Every chapter this device has ANY reading progress for, with its sync identity attached --
+-- the local half of a merge pass (PLAN.md §10). A chapter with no reading_progress row has
+-- nothing to sync (read-state is derived from presence/absence, same as everywhere else).
+selectAllProgressForSync:
+SELECT s.metadata_provider, s.external_id, s.sort_title, c.volume, c.number,
+  p.completed, p.last_page_index, p.updated_at, p.device_id
+FROM reading_progress p
+JOIN chapter c ON c.id = p.chapter_id
+JOIN series s ON s.id = c.series_id;

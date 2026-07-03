@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
@@ -28,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mangaread.core.domain.ReadingMode
+import kotlinx.coroutines.flow.StateFlow
 
 fun ThemeMode.label(): String = when (this) {
     ThemeMode.LIGHT -> "Light"
@@ -71,6 +74,9 @@ fun SettingsScreen(
     appPreferences: AppPreferences,
     onBack: () -> Unit,
     onResetLibrary: () -> Unit,
+    syncState: StateFlow<SyncState> = kotlinx.coroutines.flow.MutableStateFlow(SyncState.SignedOut),
+    onSignIn: () -> Unit = {},
+    onSignOut: () -> Unit = {},
 ) {
     var readingMode by remember { mutableStateOf(prefs.defaultReadingMode) }
     var invertTapZones by remember { mutableStateOf(prefs.invertTapZones) }
@@ -79,6 +85,8 @@ fun SettingsScreen(
     val themeMode by appPreferences.themeMode.collectAsState()
     val titleLanguage by appPreferences.titleLanguage.collectAsState()
     val metadataProvider by appPreferences.metadataProvider.collectAsState()
+    val syncEnabled by appPreferences.syncEnabled.collectAsState()
+    val sync by syncState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -216,6 +224,58 @@ fun SettingsScreen(
                     prefs.volumeKeyPaging = it
                 },
             )
+
+            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+
+            Text(
+                "Cloud sync",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
+            )
+            Text(
+                "Reading progress and read/unread state follow you across devices via a hidden " +
+                    "folder in your own Google Drive — nothing else in your Drive is touched.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            when (val state = sync) {
+                is SyncState.SignedOut -> {
+                    TextButton(onClick = onSignIn, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text("Sign in with Google")
+                    }
+                }
+                is SyncState.SigningIn -> {
+                    Row(
+                        Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(Modifier.size(20.dp))
+                        Text("Signing in…", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                is SyncState.SignedIn -> {
+                    SettingSwitchRow(
+                        title = "Sync reading progress",
+                        subtitle = "Pauses syncing without signing out",
+                        checked = syncEnabled,
+                        onCheckedChange = appPreferences::setSyncEnabled,
+                    )
+                    TextButton(onClick = onSignOut, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Sign out") }
+                }
+                is SyncState.Error -> {
+                    Text(
+                        state.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                    TextButton(onClick = onSignIn, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text("Sign in with Google")
+                    }
+                }
+            }
 
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 

@@ -1,5 +1,6 @@
 package com.mangaread
 
+import com.mangaread.core.domain.randomUuid
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,9 +62,26 @@ class AppPreferences(private val settings: Settings) {
         settings.putString(KEY_METADATA_PROVIDER, choice.name)
     }
 
+    /** Per-install random id (PLAN.md §10) tagging reading-progress writes for cross-device
+     * sync's merge tiebreak. Generated once, on first read, and frozen after that -- a plain
+     * property rather than a `StateFlow`, since nothing about it ever changes at runtime. */
+    val deviceId: String by lazy {
+        settings.getStringOrNull(KEY_DEVICE_ID) ?: randomUuid().also { settings.putString(KEY_DEVICE_ID, it) }
+    }
+
+    private val _syncEnabled = MutableStateFlow(settings.getBoolean(KEY_SYNC_ENABLED, false))
+    val syncEnabled: StateFlow<Boolean> = _syncEnabled
+
+    fun setSyncEnabled(enabled: Boolean) {
+        _syncEnabled.value = enabled
+        settings.putBoolean(KEY_SYNC_ENABLED, enabled)
+    }
+
     private companion object {
         const val KEY_THEME_MODE = "app.themeMode"
         const val KEY_TITLE_LANGUAGE = "app.titleLanguage"
         const val KEY_METADATA_PROVIDER = "app.metadataProvider"
+        const val KEY_DEVICE_ID = "app.deviceId"
+        const val KEY_SYNC_ENABLED = "app.syncEnabled"
     }
 }

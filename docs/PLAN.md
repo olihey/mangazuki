@@ -1,4 +1,4 @@
-# Cross-Platform Manga Reader — KMP Solution Plan
+# MangaZuki — Cross-Platform KMP Solution Plan
 
 A Kotlin Multiplatform plan for an iOS + Android manga reader supporting image
 folders and CBZ, with a configurable, responsive viewer, a scanning library backed
@@ -1308,7 +1308,7 @@ UI smoke tests (Compose) come later and stay thin; the logic tests above carry t
 | **2 — Reader + series** | `PageProvider` (incl. `pageSize`/spread detection §8), 4 reading modes, **gesture/polish bundle (§8.1)**, progress; series chapter/volume screen; cover badge; **selection mode + bulk read/unread (§7.5)**; **recently-read sort** | Read image + CBZ; resume; bulk-mark; tap zones + volume keys work — **done** |
 | **3 — Metadata** | AniList enrichment + matching + **rate-limited enrichment pipeline (§9.2)** + **Fix metadata re-search (§9.1)** + cover caching (app-internal, §9) | Real covers/descriptions; re-match fixes wrong matches; release-start sort live - done |
 | **4 — Cloud source** | ~~Add OneDrive~~ Add SMB (§6.1) to *validate the abstraction* — OneDrive turned out to be a dead end (Microsoft disables SAF root exposure for personal accounts); responsive + settings polish | A second source works without changing scanner/reader — **done for SMB**, see §6.1 |
-| **5 — Read-status sync** | `SyncBackend` over the user's cloud; device-independent keys; LWW merge | Progress/read-state converge across two devices |
+| **5 — Read-status sync** | `SyncBackend` over the user's cloud; device-independent keys; LWW merge | Progress/read-state converge across two devices — **built, pending real OAuth credentials to verify end-to-end**, see below |
 
 *PDF slots in after Phase 2 whenever wanted (§15 → see §16); it blocks nothing.*
 
@@ -1395,6 +1395,58 @@ adult-content toggle, a score badge) to build on. Verified on-device: re-matchin
 
 **"Recently added chapters" feed** = a library filter/section backed by the
 `chapter.date_added` query, surfaced in Phase 1 (no dedicated screen, no upstream polling).
+
+---
+
+**Phase 5 status: built, pending real OAuth credentials to verify end-to-end (2026-07-03).**
+The full §10 design (provider-scoped `ProgressKey`, the three-case matching rule, the
+two-pass `resolveSyncGroups` grouping algorithm, the deterministic `deviceId` tiebreak, the
+`progress.json` wire format) is implemented across `core:sync` (`SyncMerge.kt`,
+`GoogleAuthManager`/`GoogleAuthStore`/`GoogleDriveSyncBackend` in `androidMain`) and wired
+into `composeApp` (`ProgressSyncCoordinator`, `AppGraph.syncState`, a "Cloud sync" section in
+`SettingsScreen`, `SyncWorker` mirroring `ScanWorker`'s pattern at a 6-hour/network-only
+interval). OAuth2/PKCE uses AppAuth (`net.openid:appauth`) rather than Play Services/Credential
+Manager, chosen for its portability (plain HTTP token exchange, no vendor SDK) and because it's
+well-audited rather than hand-rolling PKCE/CSRF protection. The Drive REST calls
+(`appDataFolder` list/get/create/update) are hand-written with Ktor, matching
+`AniListMetadataProvider`/`KitsuMetadataProvider`'s style — verified against Google's and
+AppAuth's own current docs before writing, not assumed from training data.
+
+`SyncMergeTest` (`core:sync`) covers all three matching cases, the worked-example
+same-provider-conflict guard, and tiebreak determinism. `ProgressSyncCoordinatorTest`
+(`composeApp`, `androidUnitTest`) exercises the full pull→merge→resolve→apply→push round trip
+against a real in-memory-SQLite `LibraryRepository` (mirroring `core:data`'s own
+`LibraryRepositoryTest`) and a fake `SyncBackend` — apply-to-known-chapter, a fresher local
+write surviving a stale remote record, and an unresolvable remote record still round-tripping
+through `push()` so it isn't lost.
+
+The OAuth client id is sourced from `local.properties` (gitignored) via a `BuildConfig` field,
+not committed to source — not because it's a build-time secret in the usual sense (an
+Android-type OAuth client id is verified via the app's signing certificate, not by being
+hidden, and is trivially extractable from any distributed APK) but so it isn't tied to one
+Google Cloud project's id forever. **Two real bugs found during on-device verification, both
+fixed same-day:**
+1. Enabling `buildConfig` for the first time in `composeApp` made `generateDebugBuildConfig`
+   emit real Java source, which exposed a latent JVM-target mismatch against Kotlin's own
+   target (17, whatever JDK runs the build) — the module's pre-existing `compileOptions`
+   (`VERSION_11`) had been silently inert until this point since there was no Java source to
+   compile before. Fixed by aligning `compileOptions` to 17 rather than pinning Kotlin down to
+   11 (no JDK 11 toolchain was installed/downloadable in the dev environment).
+2. Tapping "Sign in with Google" before `local.properties` has a real client id crashed the
+   app outright — AppAuth's `AuthorizationRequest.Builder` throws `IllegalArgumentException`
+   on a blank client id rather than returning an error. Fixed by checking
+   `BuildConfig.GOOGLE_OAUTH_CLIENT_ID.isBlank()` before building the request and surfacing
+   `SyncState.Error(...)` in Settings instead — confirmed on-device, no crash, clear inline
+   message, "Sign in with Google" stays available to retry.
+
+**Not yet verified:** an actual successful sign-in and a real `progress.json` round-trip
+through Drive — both need a real Google Cloud OAuth client (Android-type, `drive.appdata`
+scope, package name + SHA-1 fingerprint) that only the app owner can create. Once
+`GOOGLE_OAUTH_CLIENT_ID` is set in `local.properties`, remaining verification is: sign-in
+completes and returns to the app signed-in; a `progress.json` file appears in `appDataFolder`
+(inspectable via the Drive API's own `files.list?spaces=appDataFolder`, since the folder is
+invisible in the normal Drive UI by design); and a two-device (or two-install) check that
+marking a chapter read on one converges to the other after a sync.
 
 ---
 

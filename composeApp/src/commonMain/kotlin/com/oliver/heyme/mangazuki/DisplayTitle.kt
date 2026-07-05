@@ -5,7 +5,8 @@ import com.oliver.heyme.mangazuki.core.domain.Series
 import com.oliver.heyme.mangazuki.core.metadata.RemoteWork
 
 /** Resolves which title to show per the "series title" setting (PLAN.md §9), falling back to
- * the file-derived title when the chosen AniList language isn't available for this series. */
+ * the file-derived title when the matched provider doesn't have the chosen language for this
+ * series. */
 fun LibraryCard.displayTitle(language: TitleLanguage): String = when (language) {
     TitleLanguage.FILE -> title
     TitleLanguage.ANILIST_ROMAJI -> titleRomaji ?: title

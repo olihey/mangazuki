@@ -46,9 +46,9 @@ fun ThemeMode.label(): String = when (this) {
 
 fun TitleLanguage.label(): String = when (this) {
     TitleLanguage.FILE -> "From file/folder name"
-    TitleLanguage.ANILIST_ROMAJI -> "AniList - Romaji"
-    TitleLanguage.ANILIST_ENGLISH -> "AniList - English"
-    TitleLanguage.ANILIST_NATIVE -> "AniList - Native"
+    TitleLanguage.ANILIST_ROMAJI -> "Romaji"
+    TitleLanguage.ANILIST_ENGLISH -> "English"
+    TitleLanguage.ANILIST_NATIVE -> "Native"
 }
 
 fun MetadataProviderChoice.label(): String = when (this) {
@@ -145,7 +145,7 @@ fun SettingsScreen(
             )
             Text(
                 "Which title to show for a matched series - falls back to the file/folder name " +
-                    "if AniList doesn't have that language for it.",
+                    "if the matched provider doesn't have that language for it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),

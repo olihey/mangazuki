@@ -247,6 +247,11 @@ class MainActivity : ComponentActivity() {
         val onAliasSyncCompleted: () -> Unit = { if (appPrefs.metadataAliasSyncEnabled.value) appPrefs.recordMetadataAliasSyncCompleted() }
         runCatching {
             ProgressSyncCoordinator(repository, driveBackend, aliasBackend, appPrefs::recordSyncCompleted, onAliasSyncCompleted).sync()
+        }.onFailure { t ->
+            // Matches SyncWorker's own logging for the same failure mode -- silent before, which
+            // made a partial failure (e.g. the progress half already pushed, then the alias half
+            // throwing) indistinguishable from "never ran at all" from Settings' bylines alone.
+            android.util.Log.w("MainActivity", "foreground sync failed", t)
         }
     }
 }

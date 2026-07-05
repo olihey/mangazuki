@@ -252,6 +252,12 @@ class LibraryViewModel(
         } finally {
             _progress.value = null
         }
+        // A scan can recreate chapters with a clean `reading_progress` (e.g. after Settings ->
+        // Reset library, or a first scan on a new install) -- deterministic IDs (§5) mean a synced
+        // remote record for one of them can still apply, but only once a cloud sync actually runs.
+        // Without this, nothing shows as read until the next unrelated trigger (sign-in, a manual
+        // mark-as-read, or the periodic 6h worker) happens to fire one (PLAN.md §10).
+        requestSync()
         // Fire-and-forget: enrichment is rate-limited and best-effort (PLAN.md §9.2), so it
         // shouldn't hold up the scan-progress UI or the library screen becoming usable. Its own
         // [_enrichProgress] lets the UI show it's still fetching well after the scan is done.

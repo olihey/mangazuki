@@ -1557,6 +1557,24 @@ to empty, `records` is silently ignored) — nothing local is lost (the real per
 still lives in `reading_progress`), but the already-merged cross-device snapshot resets; each
 device's next sync simply re-populates it from its own local progress in the new shape.
 
+**Fixed: a (re)scan never triggered a cloud sync (2026-07-05).** Settings -> Reset library wipes
+`reading_progress` entirely; re-scanning recreates the same chapters (deterministic IDs, §5) with
+a clean slate, and the only way to get their read status back is a cloud sync pulling the
+already-synced remote record back down. `LibraryViewModel.runScan` never called `requestSync`,
+so nothing showed as read again until some unrelated trigger (sign-in, a manual mark-as-read, or
+the periodic 6h worker) happened to fire a sync — on a fresh install or a rarely-reopened app,
+that could be a long wait, and looked indistinguishable from progress actually being lost.
+`runScan` now calls `requestSync()` right after the scan persists (before enrichment, since the
+title-fallback match path doesn't need a series to be metadata-matched to work). Verified live:
+a real re-scan of the full library pushed a fresh `progress.json` moments later.
+
+Found and fixed in the same pass: `MainActivity.runSyncIfEnabled`'s `runCatching` swallowed a
+sync failure with no logging at all (unlike `SyncWorker`'s equivalent catch, which does log) —
+observed once as a stuck "Last synced" byline even though `progress.json` had already received
+that sync's push, most likely the alias half throwing after the progress half already succeeded.
+Now logs via `Log.w("MainActivity", "foreground sync failed", t)`, matching `SyncWorker`, so a
+future recurrence is diagnosable instead of silently indistinguishable from "sync never ran."
+
 ---
 
 ## 16. Deferred extensions (designed-for, not built)

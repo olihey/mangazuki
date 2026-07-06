@@ -23,10 +23,16 @@ data class ScannedSeries(val series: Series, val chapters: List<Chapter>)
  *   <root>/<Series>/<images directly>         → one IMAGE_DIR chapter (the series folder)
  *   <root>/<Chapter>.cbz                      → CBZ chapter grouped by ComicInfo.xml <Series>,
  *                                                falling back to the file's own name (see below)
+ *
+ * Every CBZ's `ComicInfo.xml` is checked for its own `<Title>` too, used as that chapter's
+ * display name in place of the filename-derived one (PLAN.md §5, 2026-07-06). [skipCache] lets
+ * an unchanged file (same locator, same [SourceEntry.changeToken] as last scan) skip that check
+ * entirely and reuse what was already resolved -- opening a CBZ just to re-read a sidecar file
+ * that can't have changed is pure waste on a large, mostly-unchanged library.
  */
 class LibraryScanner(private val source: MangaSource) {
 
-    fun scan(rootLocator: String, now: Long): Flow<ScannedSeries> = flow {
+    fun scan(rootLocator: String, now: Long, skipCache: ChapterSkipCache = NoOpChapterSkipCache): Flow<ScannedSeries> = flow {
         val rootEntries = source.list(rootLocator).filterNot { it.name.startsWith(".") }
 
         // Skip hidden folders (e.g. Resilio's ".sync", ".thumbnails").
@@ -43,11 +49,13 @@ class LibraryScanner(private val source: MangaSource) {
 
                 else -> chapterEntries.mapNotNull { entry ->
                     if (entry.isDirectory) {
-                        val pages = source.list(entry.locator).count { it.name.isImage() }
+                        val chapterId = deterministicId(source.id, entry.locator)
+                        val cached = skipCache.lookup(chapterId)?.takeIf { it.changeToken == entry.changeToken }
+                        val pages = cached?.pageCount ?: source.list(entry.locator).count { it.name.isImage() }
                         // A subfolder with no images isn't a chapter (e.g. an "Archive" folder).
                         if (pages == 0) null else imageDirChapter(seriesId, entry, entry.name, pages, now)
                     } else {
-                        cbzChapter(seriesId, entry, now)
+                        folderCbzChapter(seriesId, entry, now, skipCache)
                     }
                 }
             }
@@ -70,22 +78,21 @@ class LibraryScanner(private val source: MangaSource) {
         }
 
         // Files sitting directly in the configured root, with no containing series folder, still
-        // count -- grouped by their own ComicInfo.xml <Series> title when present (so several
-        // loose chapter files of the same series land together, not one series per file), falling
-        // back to each file's own name (extension stripped) only when there's no usable metadata.
-        // Unlike a series folder's first-CBZ-only sniff (comicInfoSeriesTitle's own contract),
-        // every root-level file is checked -- there's no folder name to fall back to instead.
-        val chaptersByRootTitle = mutableMapOf<String, MutableList<Chapter>>()
+        // count -- grouped by resolved series id as they're processed (title-derived, same as a
+        // folder-based series' locator-derived id, so two files that resolve to the same series
+        // always land in one bucket regardless of which raw title text "won" the grouping key --
+        // see [rootCbzChapterAndSeries]).
+        val chaptersBySeriesId = mutableMapOf<String, Pair<String, MutableList<Chapter>>>() // id -> (title, chapters)
         for (entry in rootEntries.filter { !it.isDirectory && it.name.isCbz() }) {
-            val title = comicInfoSeriesTitle(entry.locator)?.takeIf { it.isNotBlank() } ?: stripCbzExtension(entry.name)
-            val seriesId = deterministicId(source.id, normalizeSortTitle(title))
-            chaptersByRootTitle.getOrPut(title) { mutableListOf() } += cbzChapter(seriesId, entry, now)
+            val (seriesId, seriesTitle, chapter) = rootCbzChapterAndSeries(entry, now, skipCache)
+            chaptersBySeriesId.getOrPut(seriesId) { seriesTitle to mutableListOf() }.second += chapter
         }
-        for ((title, chapters) in chaptersByRootTitle) {
+        for ((seriesId, titleAndChapters) in chaptersBySeriesId) {
+            val (title, chapters) = titleAndChapters
             emit(
                 ScannedSeries(
                     Series(
-                        id = deterministicId(source.id, normalizeSortTitle(title)),
+                        id = seriesId,
                         title = title,
                         sortTitle = normalizeSortTitle(title),
                         dateAdded = now,
@@ -98,15 +105,72 @@ class LibraryScanner(private val source: MangaSource) {
     }
 
     /**
-     * Best-effort series name from [cbzLocator]'s `ComicInfo.xml` sidecar. [LibrarySyncer] calls
-     * this only when a series is discovered for the very first time, against only that series'
-     * first CBZ chapter -- never on a later rescan, and never checking a second CBZ if the first
-     * has no usable `ComicInfo.xml`, so an established title can never flip-flop or cost a scan
-     * more than one extra file read. Null if there's no `ComicInfo.xml`, no `<Series>` element,
-     * or the file can't be read at all.
+     * Best-effort series/chapter names from [cbzLocator]'s `ComicInfo.xml` sidecar. Null if
+     * there's no `ComicInfo.xml`, no readable fields, or the file can't be read at all -- callers
+     * fall back to folder/file names in every case, same as before this existed.
      */
-    suspend fun comicInfoSeriesTitle(cbzLocator: String): String? =
-        readComicInfoXml(source, cbzLocator)?.let(::parseComicInfoSeriesTitle)
+    suspend fun comicInfoMeta(cbzLocator: String): ComicInfoMeta? =
+        readComicInfoXml(source, cbzLocator)?.let(::parseComicInfoMeta)
+
+    /** A CBZ chapter inside an already-identified series folder -- [seriesId] never depends on
+     * this file's own metadata, only its display name does. */
+    private suspend fun folderCbzChapter(seriesId: String, e: SourceEntry, now: Long, skipCache: ChapterSkipCache): Chapter {
+        val chapterId = deterministicId(source.id, e.locator)
+        val cached = skipCache.lookup(chapterId)?.takeIf { it.changeToken == e.changeToken }
+        val displayName = cached?.displayName
+            ?: comicInfoMeta(e.locator)?.title?.takeIf { it.isNotBlank() }
+            ?: cleanDisplayName(e.name)
+        val parsed = FilenameParser.parse(e.name)
+        return Chapter(
+            id = chapterId,
+            seriesId = seriesId,
+            sourceId = source.id,
+            locator = e.locator,
+            format = ChapterFormat.CBZ,
+            displayName = displayName,
+            volume = parsed.volume,
+            number = parsed.number,
+            pageCount = null,           // counted when the CBZ provider is built (Phase 2)
+            size = e.size,
+            changeToken = e.changeToken,
+            dateAdded = now,
+        )
+    }
+
+    /** A root-level CBZ file -- unlike [folderCbzChapter], there's no containing folder to supply
+     * a series identity, so this resolves BOTH the chapter and which series it belongs to (its
+     * own `ComicInfo.xml` <Series>, falling back to its own filename). Returns
+     * (seriesId, seriesTitle, chapter) so the caller can group same-series files together. */
+    private suspend fun rootCbzChapterAndSeries(e: SourceEntry, now: Long, skipCache: ChapterSkipCache): Triple<String, String, Chapter> {
+        val chapterId = deterministicId(source.id, e.locator)
+        val cached = skipCache.lookup(chapterId)?.takeIf { it.changeToken == e.changeToken }
+        val meta = if (cached == null) comicInfoMeta(e.locator) else null
+
+        val seriesTitle = cached?.seriesTitle
+            ?: meta?.seriesTitle?.takeIf { it.isNotBlank() }
+            ?: stripCbzExtension(e.name)
+        val seriesId = cached?.seriesId ?: deterministicId(source.id, normalizeSortTitle(seriesTitle))
+        val displayName = cached?.displayName
+            ?: meta?.title?.takeIf { it.isNotBlank() }
+            ?: cleanDisplayName(e.name)
+
+        val parsed = FilenameParser.parse(e.name)
+        val chapter = Chapter(
+            id = chapterId,
+            seriesId = seriesId,
+            sourceId = source.id,
+            locator = e.locator,
+            format = ChapterFormat.CBZ,
+            displayName = displayName,
+            volume = parsed.volume,
+            number = parsed.number,
+            pageCount = null,
+            size = e.size,
+            changeToken = e.changeToken,
+            dateAdded = now,
+        )
+        return Triple(seriesId, seriesTitle, chapter)
+    }
 
     private fun imageDirChapter(seriesId: String, e: SourceEntry, name: String, pages: Int, now: Long): Chapter {
         val parsed = FilenameParser.parse(name)
@@ -120,24 +184,6 @@ class LibraryScanner(private val source: MangaSource) {
             volume = parsed.volume,
             number = parsed.number,
             pageCount = pages,
-            size = e.size,
-            changeToken = e.changeToken,
-            dateAdded = now,
-        )
-    }
-
-    private fun cbzChapter(seriesId: String, e: SourceEntry, now: Long): Chapter {
-        val parsed = FilenameParser.parse(e.name)
-        return Chapter(
-            id = deterministicId(source.id, e.locator),
-            seriesId = seriesId,
-            sourceId = source.id,
-            locator = e.locator,
-            format = ChapterFormat.CBZ,
-            displayName = cleanDisplayName(e.name),
-            volume = parsed.volume,
-            number = parsed.number,
-            pageCount = null,           // counted when the CBZ provider is built (Phase 2)
             size = e.size,
             changeToken = e.changeToken,
             dateAdded = now,
@@ -162,6 +208,8 @@ private fun stripCbzExtension(rawName: String): String =
  * must survive), turns underscores into spaces, and capitalizes the first letter. Deliberately
  * separate from [FilenameParser]: that parser's job is extracting volume/chapter *numbers* (and
  * its `seriesTitle` strips the chapter token/number entirely, which would leave this blank).
+ * Only a fallback -- a CBZ's own `ComicInfo.xml` <Title>, when present, wins instead (see
+ * [LibraryScanner.folderCbzChapter]/[LibraryScanner.rootCbzChapterAndSeries]).
  */
 internal fun cleanDisplayName(rawName: String): String {
     val noExt = stripCbzExtension(rawName)

@@ -2,6 +2,7 @@ package com.oliver.heyme.mangazuki.core.scanner
 
 import com.oliver.heyme.mangazuki.core.domain.ChapterFormat
 import com.oliver.heyme.mangazuki.core.domain.SourceCapability
+import com.oliver.heyme.mangazuki.core.domain.deterministicId
 import com.oliver.heyme.mangazuki.core.source.ChangeSet
 import com.oliver.heyme.mangazuki.core.source.MangaSource
 import com.oliver.heyme.mangazuki.core.source.SourceEntry
@@ -23,7 +24,15 @@ private class FakeSource(private val tree: Map<String, List<SourceEntry>>) : Man
 }
 
 private fun dir(loc: String, name: String) = SourceEntry(loc, name, isDirectory = true)
-private fun file(loc: String, name: String) = SourceEntry(loc, name, isDirectory = false, size = 10)
+private fun file(loc: String, name: String, changeToken: String? = null) =
+    SourceEntry(loc, name, isDirectory = false, size = 10, changeToken = changeToken)
+
+/** In-memory [ChapterSkipCache] seeded directly by each test -- proves the scanner actually
+ * takes the reuse path (a cached value that a fresh resolution could never produce, e.g. a
+ * display name unrelated to the real filename) rather than merely not crashing. */
+private class FakeChapterSkipCache(private val entries: Map<String, CachedChapter>) : ChapterSkipCache {
+    override suspend fun lookup(chapterId: String) = entries[chapterId]
+}
 
 class LibraryScannerTest {
 
@@ -122,5 +131,87 @@ class LibraryScannerTest {
         val a = scanner.scan("/root", now = 1L).toList()
         val b = scanner.scan("/root", now = 999L).toList()
         assertEquals(a.single().series.id, b.single().series.id, "id derives from the resolved title, not scan time")
+    }
+
+    @Test
+    fun an_unchanged_folder_cbz_reuses_its_cached_display_name_instead_of_re_sniffing() = runTest {
+        val rootTree = mapOf(
+            "/root" to listOf(dir("/sl", "Solo Leveling")),
+            "/sl" to listOf(file("/sl/c", "chaper_1.cbz", changeToken = "v1")),
+        )
+        val chapterId = deterministicId("local", "/sl/c")
+        val skipCache = FakeChapterSkipCache(
+            mapOf(
+                chapterId to CachedChapter(
+                    changeToken = "v1", seriesId = "unused", seriesTitle = "unused",
+                    displayName = "The Beginning", pageCount = null,
+                ),
+            ),
+        )
+        val result = LibraryScanner(FakeSource(rootTree)).scan("/root", now = 1L, skipCache).toList()
+        assertEquals("The Beginning", result.single().chapters.single().displayName, "a matching changeToken reuses the cached value, not the filename fallback")
+    }
+
+    @Test
+    fun a_changed_folder_cbz_ignores_the_cache_and_resolves_fresh() = runTest {
+        val rootTree = mapOf(
+            "/root" to listOf(dir("/sl", "Solo Leveling")),
+            "/sl" to listOf(file("/sl/c", "chaper_1.cbz", changeToken = "v2")),
+        )
+        val chapterId = deterministicId("local", "/sl/c")
+        val skipCache = FakeChapterSkipCache(
+            mapOf(
+                chapterId to CachedChapter(
+                    changeToken = "v1", seriesId = "unused", seriesTitle = "unused",
+                    displayName = "Stale Cached Title", pageCount = null,
+                ),
+            ),
+        )
+        val result = LibraryScanner(FakeSource(rootTree)).scan("/root", now = 1L, skipCache).toList()
+        assertEquals("Chaper 1", result.single().chapters.single().displayName, "a changeToken mismatch is a miss -- falls back to the filename, not the stale cached value")
+    }
+
+    @Test
+    fun an_unchanged_image_dir_subfolder_reuses_its_cached_page_count() = runTest {
+        // The chapter subfolder's own changeToken (not its contents) is what the skip-cache
+        // compares -- SAF/SMB report a directory entry's own last-modified, same as a file's.
+        val rootTree = mapOf(
+            "/root" to listOf(dir("/b", "Berserk")),
+            "/b" to listOf(SourceEntry("/b/1", "Vol.01 Ch.001", isDirectory = true, changeToken = "v1")),
+            "/b/1" to listOf(file("/b/1/a", "001.png"), file("/b/1/b", "002.png")),
+        )
+        val chapterId = deterministicId("local", "/b/1")
+        val skipCache = FakeChapterSkipCache(
+            mapOf(
+                chapterId to CachedChapter(
+                    changeToken = "v1", seriesId = "unused", seriesTitle = "unused",
+                    displayName = "unused", pageCount = 999,
+                ),
+            ),
+        )
+        val result = LibraryScanner(FakeSource(rootTree)).scan("/root", now = 1L, skipCache).toList()
+        assertEquals(999, result.single().chapters.single().pageCount, "a matching changeToken reuses the cached page count instead of re-listing the folder")
+    }
+
+    @Test
+    fun root_level_cache_hits_are_grouped_by_series_id_not_by_raw_title_text() = runTest {
+        // Two loose files whose cached entries disagree on the raw series-title TEXT ("Aquarium"
+        // vs "AQUARIUM") but agree on the resolved series id -- they must still land in one
+        // ScannedSeries, not two, since grouping is keyed by id (PLAN.md §5 fix).
+        val rootTree = mapOf(
+            "/root" to listOf(file("/root/a.cbz", "a.cbz", changeToken = "v1"), file("/root/b.cbz", "b.cbz", changeToken = "v1")),
+        )
+        val idA = deterministicId("local", "/root/a.cbz")
+        val idB = deterministicId("local", "/root/b.cbz")
+        val skipCache = FakeChapterSkipCache(
+            mapOf(
+                idA to CachedChapter("v1", seriesId = "shared-id", seriesTitle = "Aquarium", displayName = "Ch 1", pageCount = null),
+                idB to CachedChapter("v1", seriesId = "shared-id", seriesTitle = "AQUARIUM", displayName = "Ch 2", pageCount = null),
+            ),
+        )
+        val result = LibraryScanner(FakeSource(rootTree)).scan("/root", now = 1L, skipCache).toList()
+        assertEquals(1, result.size, "both cache hits resolve to the same series id and must merge into one emission")
+        assertEquals(2, result.single().chapters.size)
+        assertEquals("shared-id", result.single().series.id)
     }
 }

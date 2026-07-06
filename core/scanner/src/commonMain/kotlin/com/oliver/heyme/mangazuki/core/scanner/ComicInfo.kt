@@ -12,14 +12,22 @@ import com.oliver.heyme.mangazuki.core.source.MangaSource
  */
 internal expect suspend fun readComicInfoXml(source: MangaSource, cbzLocator: String): String?
 
+/** A CBZ's `ComicInfo.xml`, distilled to the two fields the scanner cares about: the series it
+ * belongs to and this chapter/issue's own title. Either can be null/blank -- that's the normal
+ * "no usable metadata for this field" case, not an error. */
+data class ComicInfoMeta(val seriesTitle: String?, val title: String?)
+
 /**
- * Pulls the `<Series>` element's text out of a ComicInfo.xml document. A plain regex rather than
- * a full XML parser: `<Series>` is always a simple flat text element in the ComicInfo schema,
- * never nested or attributed, so a dedicated parser dependency isn't worth it for one field.
- * Unescapes the five standard XML entities since a series name can contain "&"/quotes.
+ * Pulls `<Series>` and `<Title>` out of a ComicInfo.xml document in one pass. A plain regex
+ * rather than a full XML parser: both are always simple flat text elements in the ComicInfo
+ * schema, never nested or attributed, so a dedicated parser dependency isn't worth it for two
+ * fields. Unescapes the five standard XML entities since either can contain "&"/quotes.
  */
-internal fun parseComicInfoSeriesTitle(xml: String): String? {
-    val text = Regex("<Series>([^<]*)</Series>", RegexOption.IGNORE_CASE)
+internal fun parseComicInfoMeta(xml: String): ComicInfoMeta =
+    ComicInfoMeta(seriesTitle = comicInfoField(xml, "Series"), title = comicInfoField(xml, "Title"))
+
+private fun comicInfoField(xml: String, tag: String): String? {
+    val text = Regex("<$tag>([^<]*)</$tag>", RegexOption.IGNORE_CASE)
         .find(xml)?.groupValues?.get(1)
         ?.replace("&lt;", "<")
         ?.replace("&gt;", ">")

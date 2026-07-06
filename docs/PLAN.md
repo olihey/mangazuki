@@ -227,6 +227,51 @@ Deliberately scoped to CBZ files only, not loose images directly in the root —
 into one flat series would need a name to call it, and unlike a CBZ there's no embedded metadata
 or meaningful containing-folder name to fall back to for a truly root-level image.
 
+### 5.2 Per-chapter title from ComicInfo.xml + skip-cache for unchanged files (added 2026-07-06)
+
+Two related changes, both to `LibraryScanner`:
+
+**Chapter titles now also come from ComicInfo.xml.** §5.1 already used a CBZ's `<Series>` element
+for the series name; `<Title>` is now read the same way for the *chapter's* display name, both
+for root-level files and for CBZ files inside a series folder (previously chapter display names
+were always filename-derived, never checked their own metadata regardless of location). Falls
+back to the existing filename-cleanup (`cleanDisplayName`) when `<Title>` is missing/blank, same
+as the series-name cascade. `ComicInfo.kt`'s `parseComicInfoSeriesTitle` became `parseComicInfoMeta`,
+returning both fields from one XML read/parse pass instead of two separate ones.
+
+Series-name resolution itself is unchanged in spirit: a folder-based series still only gets its
+one-time ComicInfo naming pass at first discovery (`LibrarySyncer.withComicInfoTitle`, PLAN.md §5)
+so an established title never flip-flops on a later rescan; a root-level file's series identity
+is still resolved fresh per scan (§5.1), since there's no folder for a "first discovery" concept
+to anchor to.
+
+**Skip-cache: an unchanged file skips its ComicInfo read entirely.** Checking every CBZ's
+`ComicInfo.xml` (rather than just a series' first file, as before) means opening a ZIP stream per
+file — real cost on a large, mostly-unchanged library being rescanned. `ChapterSkipCache`
+(`core:scanner`, a small interface so the module doesn't need a `core:data` dependency) lets the
+scanner look up what it already knows about a chapter id; if the file's current
+`SourceEntry.changeToken` still matches what's on record, the chapter's already-resolved display
+name (and, for a root-level file, its series id/title) is reused verbatim and the ComicInfo read
+is skipped. An IMAGE_DIR subfolder chapter gets the same treatment for its page count, skipping
+the re-list-and-count of its folder. `RepositoryChapterSkipCache` (`composeApp`, over a new
+`selectChapterForSkipCache` join query) is the real implementation; `LibraryScanner.scan()`
+defaults to `NoOpChapterSkipCache` (always a miss — today's full-reprocess behavior) when no
+cache is supplied, so existing callers/tests that don't care about this keep working unchanged.
+
+Root-level grouping was also changed to key by resolved *series id* rather than raw title text
+while implementing this — a latent bug, not a new one: two loose root files whose `ComicInfo.xml`
+`<Series>` values differed only cosmetically (e.g. trailing whitespace, casing) would normalize to
+the same series id but had been grouped into the scan's *emission* by the literal title string,
+so both would be emitted as separate `ScannedSeries` sharing one id — the second write would prune
+the first's chapters out from under it. Grouping by id fixes this and cannot regress it back,
+since the map key IS the persisted identity now.
+
+Verified: `ComicInfoTest` (parsing both fields from one document), `LibraryScannerTest` (cached
+display name reused on a changeToken match; changeToken mismatch forces a fresh resolution, not
+the stale cached value; cached page count reused for an unchanged IMAGE_DIR subfolder; two
+cache-hit root files sharing a series id merge into one emission despite disagreeing on title
+text). Full `core:scanner`/`core:data`/`composeApp` unit test suites pass with no regressions.
+
 ---
 
 ## 6. The Source abstraction
@@ -906,6 +951,48 @@ series as the library already had — favoring a temporarily-stale library over 
 near-total wipe from one bad listing. A later, fuller scan still prunes normally once it agrees
 with reality. Only guards the top-level count, not partial per-series corruption — an acceptable
 trade for how cheap and containment-focused the check is.
+
+**Fixed: a re-scan could sit at "0 series, 0 chapters" for as long as a still-running enrichment
+pass took to drain (found and fixed 2026-07-06).** `libraryWriteMutex` (above) serializes scans and
+enrichment correctly, but "serialize" meant "queue up and wait" — a re-scan triggered while
+`enrichPending()` was still working through a large unmatched backlog (rate-limited, one AniList
+call at a time) would set its progress UI to `ScanProgress(0, 0)` and then just sit there, unable
+to move until the entire remaining backlog finished, however long that took. Reported as "Re-scan
+only shows 0 series, 0 chapters." Made worse by the Re-scan button itself being hidden whenever
+`enrichProgress != null` (`LibraryScreen.kt`) — the foreground case where the *same* ViewModel
+started both the scan and the enrichment pass could never even reach this state; the real trigger
+is the background `ScanWorker` running its own independent enrichment pass (a separate coroutine
+scope the foreground UI has no reference to) while the user manually re-scans from the UI, which
+the visible "0/0" symptom doesn't distinguish from the simpler same-scope case.
+
+**Fix:** a re-scan now cancels a still-running enrichment pass instead of waiting for it —
+best-effort and resumable by design (`enrichPending`'s own doc), so a cancelled pass just leaves
+its remaining series to be picked up next time. `currentEnrichmentJob` (`LibraryWriteLock.kt`), a
+shared `MutableStateFlow<Job?>`, is how `LibrarySyncer.sync()` finds and cancels a pass regardless
+of which coroutine scope started it — `enrichPending()` registers its own `Job` there for the
+duration of the call (`compareAndSet` on the way out, so it can't clobber a *different* pass's
+registration if one raced in after this one was already cancelled and mid-unwind).
+`sync()` cancels `currentEnrichmentJob.value` *before* attempting `libraryWriteMutex` — has to
+happen in that order, since the enrichment pass is what's holding the mutex in the first place.
+
+Cancelling only works if `CancellationException` actually propagates: `enrichPending`'s per-item
+`catch (t: Throwable)` (deliberately broad, so one series' failure doesn't abort the whole pass)
+was catching `CancellationException` too, which would have silently swallowed the cancellation and
+let the loop carry on to the next series regardless — a real bug once something started actually
+relying on cancellation working. Fixed with a `catch (t: CancellationException) { throw t }`
+ahead of the broad catch. `LibraryScreen.kt`'s Re-scan button visibility also dropped the
+`enrichProgress == null` condition — there's no reason left to hide it during a fetch pass now
+that tapping it safely interrupts one instead of hanging behind it.
+
+Verified: `MetadataEnricherTest.cancelling_enrichPending_stops_it_and_releases_the_mutex_for_a_following_call`
+(cancelling mid-`search()` actually stops the loop and frees the mutex, not just marks the Job
+cancelled) and `LibrarySyncerTest.sync_cancels_a_currently_registered_enrichment_job_from_an_unrelated_scope_before_scanning`
+(a `sync()` call cancels a job registered by a totally unrelated coroutine, standing in for the
+real ScanWorker-vs-foreground-UI case). Reproduced and confirmed fixed on the real device: with a
+genuine 121-series unmatched backlog mid-fetch, tapping Re-scan brought the scan-progress counter
+up from "0 series, 0 chapters" to climbing within ~4 seconds, instead of staying pinned at 0/0 for
+the multiple minutes the remaining rate-limited backlog would otherwise have taken; the library
+came back with all 302 series and 0 blank chapter names both times.
 
 ### 9.1 Fix metadata (user-facing re-match)
 

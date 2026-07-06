@@ -9,10 +9,14 @@ import com.oliver.heyme.mangazuki.core.metadata.MetadataProvider
 import com.oliver.heyme.mangazuki.core.metadata.RemoteWork
 import com.oliver.heyme.mangazuki.core.metadata.RemoteWorkDetails
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Covers the alias-consultation follow-up (PLAN.md §10, 2026-07-06): a series whose normalized
@@ -111,5 +115,51 @@ class MetadataEnricherTest {
         assertEquals(1, aniList.searchCallCount, "an unresolvable alias provider must fall back to search rather than skip enrichment")
         val series = repo.observeSeries().first().single { it.id == "s1" }
         assertEquals("7", series.externalId)
+    }
+
+    /** Covers the re-scan-cancels-enrichment follow-up (PLAN.md §9.2, 2026-07-06): cancelling a
+     * still-running [MetadataEnricher.enrichPending] must actually stop it and release
+     * [libraryWriteMutex], not get swallowed as a per-item failure -- otherwise a re-scan
+     * triggered while enrichment holds the lock would still end up waiting for the whole
+     * remaining backlog regardless of the cancellation. */
+    @Test
+    fun cancelling_enrichPending_stops_it_and_releases_the_mutex_for_a_following_call() = runTest {
+        val repo = newRepo()
+        repo.persistSeries(unmatchedSeries("s1", "Aquarium"), emptyList())
+
+        // Deliberately never completes -- stands in for a real in-flight network call that a
+        // re-scan's cancellation needs to actually interrupt, not just out-wait.
+        val searchStarted = CompletableDeferred<Unit>()
+        val stuckProvider = object : MetadataProvider {
+            override suspend fun search(title: String): List<RemoteWork> {
+                searchStarted.complete(Unit)
+                CompletableDeferred<Unit>().await()
+                return emptyList()
+            }
+            override suspend fun details(externalId: String): RemoteWorkDetails = error("not reached")
+        }
+        val stuckEnricher = MetadataEnricher(
+            repo, providerFor = { stuckProvider }, providerNamed = { null }, coverClient = HttpClient(), coversDir = "unused",
+        )
+
+        val job = launch { stuckEnricher.enrichPending() }
+        searchStarted.await() // now suspended inside search(), holding libraryWriteMutex
+        assertTrue(libraryWriteMutex.isLocked, "enrichPending should be holding the mutex while mid-search")
+
+        job.cancel()
+        job.join()
+
+        assertTrue(job.isCancelled, "the enrichment coroutine should have been cancelled, not completed normally")
+        assertFalse(libraryWriteMutex.isLocked, "cancellation must release the mutex -- a swallowed CancellationException would leave it held")
+
+        // A second, independent call must be able to acquire the (now-free) mutex and complete
+        // normally -- this would hang forever if cancellation had instead been swallowed by the
+        // per-item catch(Throwable) block, leaving stuckEnricher's pass never actually finished.
+        val fastProvider = FakeMetadataProvider(results = emptyList(), detailsById = emptyMap())
+        val fastEnricher = MetadataEnricher(
+            repo, providerFor = { fastProvider }, providerNamed = { null }, coverClient = HttpClient(), coversDir = "unused",
+        )
+        fastEnricher.enrichPending()
+        assertEquals(1, fastProvider.searchCallCount, "s1 is still unmatched after the cancellation and gets retried by the next pass")
     }
 }

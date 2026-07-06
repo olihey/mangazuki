@@ -51,3 +51,15 @@ data class ChapterCard(
     /** Live-extracted cover via the scheme-tagged locator fallback (§9); generated on demand. */
     val coverModel: String?,
 )
+
+/** A chapter's last-known scan state, for the scanner's skip-cache (§5) to decide whether a file
+ * needs full reprocessing. [seriesTitle] is that chapter's series' current `title` -- only
+ * meaningful for a root-level file, whose series is resolved per-file rather than fixed by a
+ * containing folder. */
+data class ChapterSkipRow(
+    val changeToken: String?,
+    val seriesId: String,
+    val seriesTitle: String,
+    val displayName: String,
+    val pageCount: Int?,
+)

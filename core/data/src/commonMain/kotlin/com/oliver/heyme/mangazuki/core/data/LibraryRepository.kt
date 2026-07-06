@@ -298,6 +298,20 @@ class LibraryRepository(db: MangaDatabase) {
     suspend fun seriesExists(seriesId: String): Boolean =
         withContext(ioDispatcher) { q.seriesExists(seriesId).executeAsOne() }
 
+    /** A chapter's last-known scan state, for the scanner's skip-cache (PLAN.md §5) -- null if
+     * this chapter id has never been scanned before. */
+    suspend fun findChapterForSkipCache(chapterId: String): ChapterSkipRow? = withContext(ioDispatcher) {
+        q.selectChapterForSkipCache(chapterId).executeAsOneOrNull()?.let {
+            ChapterSkipRow(
+                changeToken = it.change_token,
+                seriesId = it.series_id,
+                seriesTitle = it.series_title,
+                displayName = it.display_name,
+                pageCount = it.page_count?.toInt(),
+            )
+        }
+    }
+
     /** Settings -> Reset library (PLAN.md §7.1): wipes every series/chapter/progress row and the
      * configured source, so the app returns to its pre-first-scan state. Only touches the DB —
      * cached cover/banner files and the image loader's cache live on disk and are cleared by the

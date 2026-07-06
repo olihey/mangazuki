@@ -6,7 +6,10 @@ import com.oliver.heyme.mangazuki.core.domain.normalizeSortTitle
 import com.oliver.heyme.mangazuki.core.metadata.MetadataProvider
 import com.oliver.heyme.mangazuki.core.metadata.bestMatch
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.withLock
+import kotlin.coroutines.coroutineContext
 
 /**
  * Background AniList enrichment (PLAN.md §9.2): dequeues series still missing an
@@ -39,38 +42,56 @@ class MetadataEnricher(
      * (PLAN.md §9.2). Never invoked when there's nothing pending, so callers can use a null-vs-
      * non-null progress value to know whether enrichment is actually running. */
     suspend fun enrichPending(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }) = libraryWriteMutex.withLock {
-        val provider = providerFor()
-        val pending = repository.unmatchedSeries()
-        val total = pending.size
-        // A series whose normalized title already has a recorded Fix Metadata alias (PLAN.md
-        // §10 follow-up, 2026-07-06) -- e.g. re-scanned after a library reset, or matched fresh
-        // on a second device -- gets that exact match applied directly instead of re-running a
-        // fuzzy search that could easily land on a different (wrong) entry for an ambiguous
-        // title. Fetched once up front, not per series: the alias table only ever grows from
-        // deliberate user actions, so it's small regardless of library size.
-        val aliasByTitle: Map<String, MetadataAliasRow> = repository.allMetadataAliases().associateBy { it.normalizedOldTitle }
-        pending.forEachIndexed { index, (seriesId, rawTitle) ->
-            try {
-                val alias = aliasByTitle[normalizeSortTitle(rawTitle)]
-                val aliasProvider = alias?.let { providerNamed(it.provider) }
-                if (alias != null && aliasProvider != null) {
-                    applyMatch(seriesId, aliasProvider, alias.externalId)
-                } else {
-                    val query = cleanSearchQuery(rawTitle)
-                    val match = bestMatch(query, provider.search(query))
-                    if (match == null) {
-                        // A real search that came back with nothing good enough — distinct from a
-                        // network/rate-limit failure below, which leaves the series "never checked"
-                        // (not "checked, no match") so it's retried rather than stuck showing ✕.
-                        repository.markMetadataChecked(seriesId)
+        // Published so a *different* enrichPending/sync call -- possibly in a completely separate
+        // coroutine scope, e.g. the foreground UI's trigger vs. the background ScanWorker's own
+        // pass -- can find and cancel this one instead of queuing up behind it on the mutex above
+        // (PLAN.md §9.2, 2026-07-06). compareAndSet on the way out so this can't clobber a
+        // *different* pass's registration that started after this one was already cancelled and
+        // is still unwinding.
+        val myJob = coroutineContext[Job]
+        currentEnrichmentJob.value = myJob
+        try {
+            val provider = providerFor()
+            val pending = repository.unmatchedSeries()
+            val total = pending.size
+            // A series whose normalized title already has a recorded Fix Metadata alias (PLAN.md
+            // §10 follow-up, 2026-07-06) -- e.g. re-scanned after a library reset, or matched fresh
+            // on a second device -- gets that exact match applied directly instead of re-running a
+            // fuzzy search that could easily land on a different (wrong) entry for an ambiguous
+            // title. Fetched once up front, not per series: the alias table only ever grows from
+            // deliberate user actions, so it's small regardless of library size.
+            val aliasByTitle: Map<String, MetadataAliasRow> = repository.allMetadataAliases().associateBy { it.normalizedOldTitle }
+            pending.forEachIndexed { index, (seriesId, rawTitle) ->
+                try {
+                    val alias = aliasByTitle[normalizeSortTitle(rawTitle)]
+                    val aliasProvider = alias?.let { providerNamed(it.provider) }
+                    if (alias != null && aliasProvider != null) {
+                        applyMatch(seriesId, aliasProvider, alias.externalId)
                     } else {
-                        applyMatch(seriesId, provider, match.externalId)
+                        val query = cleanSearchQuery(rawTitle)
+                        val match = bestMatch(query, provider.search(query))
+                        if (match == null) {
+                            // A real search that came back with nothing good enough — distinct from a
+                            // network/rate-limit failure below, which leaves the series "never checked"
+                            // (not "checked, no match") so it's retried rather than stuck showing ✕.
+                            repository.markMetadataChecked(seriesId)
+                        } else {
+                            applyMatch(seriesId, provider, match.externalId)
+                        }
                     }
+                } catch (t: CancellationException) {
+                    // A re-scan (LibrarySyncer.sync) cancels a still-running enrichment pass rather
+                    // than let a new scan wait behind it on libraryWriteMutex -- this must propagate,
+                    // not be swallowed as a per-item failure, or cancellation would just silently
+                    // no-op and the loop would carry on to the next series regardless.
+                    throw t
+                } catch (t: Throwable) {
+                    // Best-effort — leave this one unmatched, try again next pass.
                 }
-            } catch (t: Throwable) {
-                // Best-effort — leave this one unmatched, try again next pass.
+                onProgress(index + 1, total)
             }
-            onProgress(index + 1, total)
+        } finally {
+            currentEnrichmentJob.compareAndSet(myJob, null)
         }
     }
 

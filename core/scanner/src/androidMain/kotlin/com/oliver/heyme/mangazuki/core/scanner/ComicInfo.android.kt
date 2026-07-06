@@ -11,9 +11,10 @@ import java.util.zip.ZipInputStream
  * genuine socket I/O for a network source (SMB), which StrictMode kills with
  * NetworkOnMainThreadException if it happens on the caller's thread (PLAN.md §6.1's bug #3,
  * fixed the same way for the reader's own CbzArchive). A plain forward scan (mirrors
- * `CoverFetcher.firstCbzImage`) rather than a full central-directory parse: this only ever runs
- * once, for a newly discovered series' first CBZ, so it doesn't need CbzArchive's random-access
- * machinery -- it just wants one small file, wherever it happens to sit in the archive.
+ * `CoverFetcher.firstCbzImage`) rather than a full central-directory parse: it just wants one
+ * small file, wherever it happens to sit in the archive, and doesn't need CbzArchive's
+ * random-access machinery for that. Runs once per CBZ per scan at most -- a chapter skip-cache
+ * hit (PLAN.md §5) skips this entirely for a file unchanged since the last scan.
  *
  * Matches by base name, case-insensitively: some CBZ tools nest content under a wrapping folder
  * (e.g. "Chapter 1/ComicInfo.xml"), so a bare exact `"ComicInfo.xml"` match can silently miss it.

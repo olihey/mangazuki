@@ -248,6 +248,9 @@ class LibraryViewModel(
         if (!source.canAccess(rootLocator)) { _needsReGrant.value = true; return }
         _progress.value = ScanProgress(0, 0)
         try {
+            // Cancels a still-running enrichment pass before waiting on libraryWriteMutex --
+            // wherever it was started from, even a completely different coroutine scope like
+            // ScanWorker's own background pass (PLAN.md §9.2, 2026-07-06). See LibrarySyncer.sync.
             syncer.sync(rootLocator) { s, c -> _progress.value = ScanProgress(s, c) }
         } finally {
             _progress.value = null

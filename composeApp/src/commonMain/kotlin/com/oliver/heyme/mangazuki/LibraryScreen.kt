@@ -124,7 +124,12 @@ fun LibraryScreen(
                     },
                     actions = {
                         TextButton(onClick = viewModel::cycleViewMode) { Text(viewMode.name.lowercase().replaceFirstChar { it.uppercase() }) }
-                        if (canRescan && progress == null && enrichProgress == null) TextButton(onClick = viewModel::rescan) { Text("Re-scan") }
+                        // Available during a metadata-fetch pass too, not just when fully idle --
+                        // re-scanning now cancels a still-running enrichment pass rather than wait
+                        // behind it (PLAN.md §9.2, 2026-07-06), so there's no reason to hide the
+                        // button for that case anymore. Still hidden during an active scan itself
+                        // (progress != null) -- re-triggering that mid-flight doesn't make sense.
+                        if (canRescan && progress == null) TextButton(onClick = viewModel::rescan) { Text("Re-scan") }
                         TextButton(onClick = onSettingsClick) { Text("Settings") }
                     },
                 )

@@ -21,12 +21,16 @@ data class ScannedSeries(val series: Series, val chapters: List<Chapter>)
  *   <root>/<Series>/<Chapter dir of images>   → IMAGE_DIR chapter
  *   <root>/<Series>/<Chapter>.cbz             → CBZ chapter
  *   <root>/<Series>/<images directly>         → one IMAGE_DIR chapter (the series folder)
+ *   <root>/<Chapter>.cbz                      → CBZ chapter grouped by ComicInfo.xml <Series>,
+ *                                                falling back to the file's own name (see below)
  */
 class LibraryScanner(private val source: MangaSource) {
 
     fun scan(rootLocator: String, now: Long): Flow<ScannedSeries> = flow {
+        val rootEntries = source.list(rootLocator).filterNot { it.name.startsWith(".") }
+
         // Skip hidden folders (e.g. Resilio's ".sync", ".thumbnails").
-        for (dir in source.list(rootLocator).filter { it.isDirectory && !it.name.startsWith(".") }) {
+        for (dir in rootEntries.filter { it.isDirectory }) {
             val seriesId = deterministicId(source.id, dir.locator)
 
             val children = source.list(dir.locator)
@@ -57,6 +61,33 @@ class LibraryScanner(private val source: MangaSource) {
                         id = seriesId,
                         title = dir.name,
                         sortTitle = normalizeSortTitle(dir.name),
+                        dateAdded = now,
+                        lastScanned = now,
+                    ),
+                    chapters,
+                ),
+            )
+        }
+
+        // Files sitting directly in the configured root, with no containing series folder, still
+        // count -- grouped by their own ComicInfo.xml <Series> title when present (so several
+        // loose chapter files of the same series land together, not one series per file), falling
+        // back to each file's own name (extension stripped) only when there's no usable metadata.
+        // Unlike a series folder's first-CBZ-only sniff (comicInfoSeriesTitle's own contract),
+        // every root-level file is checked -- there's no folder name to fall back to instead.
+        val chaptersByRootTitle = mutableMapOf<String, MutableList<Chapter>>()
+        for (entry in rootEntries.filter { !it.isDirectory && it.name.isCbz() }) {
+            val title = comicInfoSeriesTitle(entry.locator)?.takeIf { it.isNotBlank() } ?: stripCbzExtension(entry.name)
+            val seriesId = deterministicId(source.id, normalizeSortTitle(title))
+            chaptersByRootTitle.getOrPut(title) { mutableListOf() } += cbzChapter(seriesId, entry, now)
+        }
+        for ((title, chapters) in chaptersByRootTitle) {
+            emit(
+                ScannedSeries(
+                    Series(
+                        id = deterministicId(source.id, normalizeSortTitle(title)),
+                        title = title,
+                        sortTitle = normalizeSortTitle(title),
                         dateAdded = now,
                         lastScanned = now,
                     ),
@@ -118,6 +149,12 @@ private fun String.ext() = substringAfterLast('.', "").lowercase()
 private fun String.isCbz() = ext() == "cbz"
 private fun String.isImage() = ext() in setOf("jpg", "jpeg", "png", "webp", "gif", "avif", "bmp")
 
+/** A root-level CBZ's fallback series title (only used when it has no usable `ComicInfo.xml`):
+ * its own filename, extension stripped -- a stray "." inside a name like "Vol. 01.cbz" survives
+ * since only the trailing `.cbz` is removed. */
+private fun stripCbzExtension(rawName: String): String =
+    if (rawName.isCbz()) rawName.substringBeforeLast('.') else rawName
+
 /**
  * Chapter card/reader-title text (PLAN.md §7.3) — a raw filename like "chaper_18.5.cbz" reads
  * poorly as a title. Strips the archive extension (only when actually one — an IMAGE_DIR
@@ -127,7 +164,7 @@ private fun String.isImage() = ext() in setOf("jpg", "jpeg", "png", "webp", "gif
  * its `seriesTitle` strips the chapter token/number entirely, which would leave this blank).
  */
 internal fun cleanDisplayName(rawName: String): String {
-    val noExt = if (rawName.isCbz()) rawName.substringBeforeLast('.') else rawName
+    val noExt = stripCbzExtension(rawName)
     val spaced = noExt.replace('_', ' ').trim()
     return if (spaced.isEmpty()) spaced else spaced[0].uppercase() + spaced.substring(1)
 }

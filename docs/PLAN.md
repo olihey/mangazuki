@@ -173,7 +173,7 @@ Notes:
 - **Deterministic IDs + upsert scans.** IDs derive from a stable key so re-scanning
   *reconciles* (add new / update changed / flag missing) instead of duplicating the
   library. Non-negotiable from the first scanner — see §13.
-- **ID hash is a frozen, versioned decision:** `id = hex(SHA-256(source_id + " " +
+- **ID hash is a frozen, versioned decision:** `id = hex(SHA-256(source_id + " " +
   normalized_locator)[0..15])` (first 16 bytes, lowercase hex). The function and its inputs
   **must never change** — a different hash re-keys every row and orphans progress, sync, and
   matches. Locator normalization (Unicode NFC, trim, OS-path separators unified to `/`) is
@@ -205,6 +205,27 @@ Notes:
   history to verify against. `3.sqm` (adding `status`/`format`/`genres`/`tags`/`is_adult`/
   `average_score`/`site_url`/`banner_path`, also Phase 3) hit the same retrofit limitation and was
   verified the same way.
+
+### 5.1 Root-level chapter files (added 2026-07-06)
+
+`LibraryScanner` originally only recognized series *folders* one level under the configured
+root (`<root>/<Series>/<chapter files>`) — a CBZ file sitting directly in the root (no containing
+series folder at all) was invisible to the scan. Found when a user pointed the configured root
+directly at a folder of loose chapter CBZs (no wrapping series folder) and got an empty library.
+
+**Fix:** after the existing per-folder walk, `LibraryScanner.scan()` also looks at non-directory
+CBZ entries directly in the root. Each is resolved to a series title independently: its own
+`ComicInfo.xml` `<Series>` element if present (so several loose chapter files of the same series
+sitting in the root land together, not one series per file — verified against a real 13-chapter
+one-shot whose files all carried matching `ComicInfo.xml` metadata), falling back to the file's
+own name (extension stripped, unprocessed — same convention a folder-based series title already
+uses) only when there's no usable metadata. The series id for a root-grouped series is
+`deterministicId(source_id, normalizeSortTitle(title))` rather than a folder locator, since
+there's no folder to hash — chapter ids are unaffected (still per-file locator hashes).
+
+Deliberately scoped to CBZ files only, not loose images directly in the root — grouping those
+into one flat series would need a name to call it, and unlike a CBZ there's no embedded metadata
+or meaningful containing-folder name to fall back to for a truly root-level image.
 
 ---
 

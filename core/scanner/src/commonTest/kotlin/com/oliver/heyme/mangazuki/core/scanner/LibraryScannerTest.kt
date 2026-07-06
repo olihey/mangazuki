@@ -82,4 +82,45 @@ class LibraryScannerTest {
         val idsB = b.flatMap { listOf(it.series.id) + it.chapters.map { c -> c.id } }.toSet()
         assertEquals(idsA, idsB, "ids derive from locator, not scan time -> re-scan reconciles")
     }
+
+    @Test
+    fun a_loose_cbz_directly_in_the_root_becomes_its_own_series() = runTest {
+        // FakeSource.open() throws (caught by readComicInfoXml, same as a real missing/corrupt
+        // ComicInfo.xml), so this exercises the no-metadata fallback: the file's own name.
+        val rootTree = mapOf(
+            "/root" to listOf(dir("/sl", "Solo Leveling"), file("/root/loose.cbz", "loose_ch1.cbz")),
+            "/sl" to listOf(file("/sl/c", "chaper_1.cbz")),
+        )
+        val result = LibraryScanner(FakeSource(rootTree)).scan("/root", now = 1L).toList()
+
+        // Fallback title is the raw filename minus extension -- unprocessed, same convention a
+        // folder-based series title already uses (`dir.name`, not `cleanDisplayName`'d).
+        assertEquals(setOf("Solo Leveling", "loose_ch1"), result.map { it.series.title }.toSet())
+        val loose = result.first { it.series.title == "loose_ch1" }
+        assertEquals(1, loose.chapters.size)
+        assertEquals(ChapterFormat.CBZ, loose.chapters[0].format)
+        assertEquals("Loose ch1", loose.chapters[0].displayName, "the CHAPTER's own display name is still cleaned up")
+    }
+
+    @Test
+    fun several_loose_root_cbz_files_with_no_metadata_split_into_separate_series_by_filename() = runTest {
+        val rootTree = mapOf(
+            "/root" to listOf(file("/root/a.cbz", "aquarium_ch1.cbz"), file("/root/b.cbz", "aquarium_ch2.cbz")),
+        )
+        // Different filenames -> different fallback titles -> two series, since FakeSource can't
+        // supply real ComicInfo.xml bytes for the metadata-grouping path (covered instead by
+        // ComicInfoTest's parsing coverage plus real-file verification, PLAN.md §6).
+        val result = LibraryScanner(FakeSource(rootTree)).scan("/root", now = 1L).toList()
+        assertEquals(setOf("aquarium_ch1", "aquarium_ch2"), result.map { it.series.title }.toSet())
+        result.forEach { assertEquals(1, it.chapters.size) }
+    }
+
+    @Test
+    fun root_level_series_ids_are_stable_across_scans() = runTest {
+        val rootTree = mapOf("/root" to listOf(file("/root/loose.cbz", "loose.cbz")))
+        val scanner = LibraryScanner(FakeSource(rootTree))
+        val a = scanner.scan("/root", now = 1L).toList()
+        val b = scanner.scan("/root", now = 999L).toList()
+        assertEquals(a.single().series.id, b.single().series.id, "id derives from the resolved title, not scan time")
+    }
 }

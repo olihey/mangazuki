@@ -73,6 +73,11 @@ import com.oliver.heyme.mangazuki.core.data.LibraryCard
  * mocked flat-gradient placeholders -- those are reused here only for the loading/no-cover
  * fallback state, the same role [CoverPlaceholder]'s letter tile already played.
  */
+/** The masthead's headline now doubles as a two-way tab switcher (LIBRARY vs. the still-empty
+ * YOUR_PAGE) -- local-only UI state, not persisted or known to [LibraryViewModel], since there's
+ * nothing behind YOUR_PAGE yet for any other screen to care about. */
+private enum class LibraryTab { LIBRARY, YOUR_PAGE }
+
 @Composable
 fun MangaShelfGrid(
     viewModel: LibraryViewModel,
@@ -97,22 +102,29 @@ fun MangaShelfGrid(
 ) {
     val archivo = mangaArchivo()
     val anton = mangaAnton()
+    var activeTab by remember { mutableStateOf(LibraryTab.LIBRARY) }
 
     Column(Modifier.fillMaxSize().background(MangaColors.Bg)) {
-        ShelfMasthead(progress, enrichProgress, canRescan, onRescan = viewModel::rescan, onSettingsClick, archivo, anton)
-        if (needsReGrant) ShelfReGrantBanner(onAddSource, archivo)
-        when {
-            !canRescan && !needsReGrant -> ShelfEmptyState("No library source configured yet.", archivo) {
-                Button(onClick = onAddSource, colors = ButtonDefaults.buttonColors(containerColor = MangaColors.Accent)) {
-                    Text("+ Add source", fontFamily = archivo, fontWeight = FontWeight.Bold, color = Color.White)
+        ShelfMasthead(progress, enrichProgress, canRescan, onRescan = viewModel::rescan, onSettingsClick, activeTab, onTabChange = { activeTab = it }, archivo, anton)
+        if (activeTab == LibraryTab.YOUR_PAGE) {
+            // Nothing here yet -- just confirming the tab switch itself works before building
+            // out what "Your Page" actually shows.
+            Box(Modifier.fillMaxSize())
+        } else {
+            if (needsReGrant) ShelfReGrantBanner(onAddSource, archivo)
+            when {
+                !canRescan && !needsReGrant -> ShelfEmptyState("No library source configured yet.", archivo) {
+                    Button(onClick = onAddSource, colors = ButtonDefaults.buttonColors(containerColor = MangaColors.Accent)) {
+                        Text("+ Add source", fontFamily = archivo, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
-            }
-            cards.isEmpty() && progress == null && query.isBlank() && !needsReGrant ->
-                ShelfEmptyState("No series found in this library yet.", archivo)
-            else -> {
-                ShelfToolbar(viewModel, query, sort, ascending, filter, archivo)
-                ShelfHeaderRow(filter, cards.size, archivo, anton)
-                ShelfGrid(cards, titleLanguage, onSeriesClick, onLongClickSeries, archivo, anton)
+                cards.isEmpty() && progress == null && query.isBlank() && !needsReGrant ->
+                    ShelfEmptyState("No series found in this library yet.", archivo)
+                else -> {
+                    ShelfToolbar(viewModel, query, sort, ascending, filter, archivo)
+                    ShelfHeaderRow(filter, cards.size, archivo, anton)
+                    ShelfGrid(cards, titleLanguage, onSeriesClick, onLongClickSeries, archivo, anton)
+                }
             }
         }
     }
@@ -125,6 +137,8 @@ private fun ShelfMasthead(
     canRescan: Boolean,
     onRescan: () -> Unit,
     onSettingsClick: () -> Unit,
+    activeTab: LibraryTab,
+    onTabChange: (LibraryTab) -> Unit,
     archivo: FontFamily,
     anton: FontFamily,
 ) {
@@ -141,7 +155,10 @@ private fun ShelfMasthead(
                     "MANGAZUKI", color = MangaColors.Accent, fontFamily = archivo, fontWeight = FontWeight.SemiBold,
                     fontSize = 10.sp, letterSpacing = 3.sp,
                 )
-                Text("LIBRARY", color = MangaColors.Text, fontFamily = anton, fontSize = 34.sp, lineHeight = 34.sp, modifier = Modifier.padding(top = 4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    MastheadTab("LIBRARY", active = activeTab == LibraryTab.LIBRARY, onClick = { onTabChange(LibraryTab.LIBRARY) }, anton)
+                    MastheadTab("YOUR PAGE", active = activeTab == LibraryTab.YOUR_PAGE, onClick = { onTabChange(LibraryTab.YOUR_PAGE) }, anton)
+                }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -151,6 +168,14 @@ private fun ShelfMasthead(
             ShelfIconButton(onClick = onSettingsClick, icon = Icons.Default.Settings, background = MangaColors.Accent, tint = Color.White)
         }
     }
+}
+
+@Composable
+private fun MastheadTab(label: String, active: Boolean, onClick: () -> Unit, anton: FontFamily) {
+    Text(
+        label, color = if (active) MangaColors.Text else MangaColors.TextMuted, fontFamily = anton,
+        fontSize = 34.sp, lineHeight = 34.sp, modifier = Modifier.clickable(onClick = onClick),
+    )
 }
 
 @Composable

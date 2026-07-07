@@ -1688,6 +1688,58 @@ to empty, `records` is silently ignored) — nothing local is lost (the real per
 still lives in `reading_progress`), but the already-merged cross-device snapshot resets; each
 device's next sync simply re-populates it from its own local progress in the new shape.
 
+**Fixed: an explicit un-read couldn't survive a sync — `progress.json` v3, per-chapter
+last-write-wins (2026-07-07).** Reported live: opening "A Silent Voice" (no read chapters/volumes
+at the time), long-pressing the first chapter and marking it read, then a few seconds later
+*every other chapter* flipped to read too, one at a time (~1s apart — the reactive chapter grid
+updating live as each write landed). Root cause: v2's `completedVolumes` union was a deliberate
+"completion is monotonic, never un-read behind sync's back" design (see the v2 entry above) — but
+it had no per-entry timestamp, so it could never be overridden once written. This series really
+had been fully read at some point and pushed to Drive; local progress was later reset to unread,
+but marking even one chapter triggered `requestSync()` (5s debounce, `ProgressSyncScheduler`),
+which pulled the still-"fully read" Drive backup and the union resurrected every chapter — the
+monotonic design working exactly as documented, just not as anyone actually wants: the "Unread"
+bulk action (§7.5) was silently undone by the next sync for any chapter ever previously synced
+as complete.
+
+Decided (with the user) to drop the monotonic-union invariant entirely in favor of genuine
+per-chapter last-write-wins: an explicit un-read is a real write with its own fresher timestamp
+and now wins a merge the same way a completion does, full stop. `SeriesProgressRecord` collapses
+`completedVolumes`/`inProgressVolumes` (`VolumeChapterKey`/`InProgressVolume`, no per-entry
+timestamp) into one `volumes: List<VolumeProgress>` (`volume`, `number`, `completed`,
+`lastPageIndex`, **`updatedAt` per entry**) — the local side already had this granularity
+(`SyncProgressRow.updatedAt` is per-chapter) and was just discarding it when aggregating into one
+record per series; `ProgressSyncCoordinator.toSeriesProgressRecords()` now keeps it.
+`SyncMerge.winner` buckets every entry across the group by `(volume, number)` and keeps whichever
+single entry has the newest `updatedAt`, completed or not — no more separate
+union-vs-wholesale-list handling for the two states, since there's only one now. Applying a
+winner back to the local DB (`ProgressSyncCoordinator.sync()`) also now passes each entry's own
+`updatedAt`, not a series-wide aggregate — the aggregate was itself a latent bug: it would've
+stamped every chapter in a synced series with the same inflated timestamp regardless of whether
+that specific chapter's entry actually changed, making it look fresher than it really was on a
+future merge.
+
+Wire format bumps to v3 (`progress.json`'s `series[].volumes`, one row
+`[volume, number, completed, lastPageIndex, updatedAt]` per chapter) — same "no migration"
+story as v1→v2: a v2 file's `completedVolumes`/`inProgressVolumes` are silently ignored (unknown
+keys), `volumes` defaults to empty, and the next sync from any device re-populates it from local
+`reading_progress` with real per-chapter timestamps.
+
+Trade-off, accepted deliberately: two devices can now genuinely race on one chapter (device A
+marks it read while device B — not yet aware of A's write — marks it unread), and whichever
+write has the later wall-clock timestamp wins, even if that happens to be the unread one. This
+is the ordinary cost of last-write-wins with no vector clock, same tiebreak philosophy already
+used everywhere else in this design (`resolveAliasWinners`, `applyProgressIfNewer`) — preferred
+over the old monotonic union, which guaranteed a completion could never regress but at the cost
+of a real user action (un-reading) never being able to stick.
+
+Verified: `SyncMergeTest` rewritten for the new per-chapter `winner()` (kept every case: the
+three-way provider/title matching is untouched, ties still break deterministically, a stale
+in-progress marker still can't resurrect a chapter finished elsewhere) plus a new case for the
+exact reported scenario (a fresher local unread retracts a stale remote completion).
+`ProgressSyncCoordinatorTest` gets the same new case end-to-end against a real in-memory-SQLite
+`LibraryRepository`, confirming the retraction is both applied locally and pushed back to Drive.
+
 **Fixed: a (re)scan never triggered a cloud sync (2026-07-05).** Settings -> Reset library wipes
 `reading_progress` entirely; re-scanning recreates the same chapters (deterministic IDs, §5) with
 a clean slate, and the only way to get their read status back is a cloud sync pulling the

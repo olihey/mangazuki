@@ -29,7 +29,13 @@ private const val METADATA_ALIAS_FILE_NAME = "metadata_aliases.json"
 // `series` field defaults to empty, and the old `records` field is silently ignored), so each
 // device's very next sync simply re-populates it from that device's own local progress. No
 // migration path -- nothing local is lost, only the already-merged cross-device snapshot resets.
-private const val WIRE_FORMAT_VERSION = 2
+// v3 (2026-07-07): each chapter entry gains its own `updatedAt` (`volumes`, one row per chapter),
+// replacing v2's `completedVolumes`/`inProgressVolumes` split that had no per-entry timestamp --
+// that's what made an explicit un-read impossible to ever win a merge (PLAN.md §10). Same "no
+// migration" story: a v2 file's `completedVolumes`/`inProgressVolumes` are silently ignored (the
+// new `volumes` field isn't there, so it defaults to empty), and the next sync from any device
+// re-populates it from that device's own local `reading_progress`, this time with real timestamps.
+private const val WIRE_FORMAT_VERSION = 3
 private val debugJsonPrinter = Json { prettyPrint = true }
 
 /**
@@ -162,21 +168,20 @@ class GoogleDriveSyncBackend(
 @Serializable
 private data class SyncFileDto(val version: Int, val series: List<SeriesRecordDto> = emptyList())
 
-/** [completedVolumes]/[inProgressVolumes] entries are plain JSON arrays (`[volume, number]` /
- * `[volume, number, lastPageIndex]`, `volume`/`number` `null` when a chapter doesn't have that
- * dimension) rather than nested objects -- this is the whole point of the v2 format (PLAN.md
- * §10): one compact series record instead of one object per chapter. `lastPageIndex` round-trips
- * as a `Double` like the other two slots (e.g. `172.0` not `172`) so this stays a single
- * `List<List<Double?>>` shape with no custom serializer needed -- JSON doesn't distinguish
- * integer-valued numbers from other numbers anyway, so nothing is lost. */
+/** [volumes] entries are plain JSON arrays -- `[volume, number, completed, lastPageIndex,
+ * updatedAt]`, `volume`/`number` `null` when a chapter doesn't have that dimension, `completed`
+ * as `1.0`/`0.0` -- rather than nested objects, keeping the same compact-series-record spirit as
+ * v2 (PLAN.md §10) while giving every chapter its own timestamp (v3, 2026-07-07). Everything
+ * round-trips as a `Double` (e.g. `172.0` not `172`, `1737849600000.0` for a millis timestamp)
+ * so this stays a single `List<List<Double?>>` shape with no custom serializer needed -- JSON
+ * doesn't distinguish integer-valued numbers from other numbers anyway, and a millis timestamp
+ * is nowhere near `Double`'s 2^53 exact-integer ceiling. */
 @Serializable
 private data class SeriesRecordDto(
     val provider: String? = null,
     val externalId: String? = null,
     val normalizedTitle: String,
-    val completedVolumes: List<List<Double?>> = emptyList(),
-    val inProgressVolumes: List<List<Double?>> = emptyList(),
-    val updatedAt: Long,
+    val volumes: List<List<Double?>> = emptyList(),
 )
 
 @Serializable
@@ -204,18 +209,22 @@ private fun SeriesProgressRecord.toDto() = SeriesRecordDto(
     provider = key.provider,
     externalId = key.externalId,
     normalizedTitle = key.normalizedTitle,
-    completedVolumes = completedVolumes.map { listOf(it.volume, it.number) },
-    inProgressVolumes = inProgressVolumes.map { listOf(it.volume, it.number, it.lastPageIndex.toDouble()) },
-    updatedAt = updatedAt,
+    volumes = volumes.map {
+        listOf(it.volume, it.number, if (it.completed) 1.0 else 0.0, it.lastPageIndex.toDouble(), it.updatedAt.toDouble())
+    },
 )
 
 private fun SeriesRecordDto.toSeriesProgressRecord() = SeriesProgressRecord(
     key = SeriesKey(provider, externalId, normalizedTitle),
-    completedVolumes = completedVolumes.map { VolumeChapterKey(volume = it.getOrNull(0), number = it.getOrNull(1)) },
-    inProgressVolumes = inProgressVolumes.map {
-        InProgressVolume(volume = it.getOrNull(0), number = it.getOrNull(1), lastPageIndex = (it.getOrNull(2) ?: 0.0).toInt())
+    volumes = volumes.map {
+        VolumeProgress(
+            volume = it.getOrNull(0),
+            number = it.getOrNull(1),
+            completed = (it.getOrNull(2) ?: 0.0) != 0.0,
+            lastPageIndex = (it.getOrNull(3) ?: 0.0).toInt(),
+            updatedAt = (it.getOrNull(4) ?: 0.0).toLong(),
+        )
     },
-    updatedAt = updatedAt,
 )
 
 private fun MetadataAliasRecord.toDto() = AliasRecordDto(normalizedTitle, provider, externalId, updatedAt, deviceId)

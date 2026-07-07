@@ -6,19 +6,15 @@ import kotlin.test.assertTrue
 
 class SyncMergeTest {
 
+    private fun volume(number: Double, completed: Boolean, updatedAt: Long, lastPageIndex: Int = 0, volume: Double? = null) =
+        VolumeProgress(volume, number, completed, lastPageIndex, updatedAt)
+
     private fun record(
         provider: String? = null,
         externalId: String? = null,
         title: String = "attack on titan",
-        completedVolumes: List<VolumeChapterKey> = emptyList(),
-        inProgressVolumes: List<InProgressVolume> = emptyList(),
-        updatedAt: Long = 0,
-    ) = SeriesProgressRecord(
-        key = SeriesKey(provider, externalId, title),
-        completedVolumes = completedVolumes,
-        inProgressVolumes = inProgressVolumes,
-        updatedAt = updatedAt,
-    )
+        volumes: List<VolumeProgress> = emptyList(),
+    ) = SeriesProgressRecord(key = SeriesKey(provider, externalId, title), volumes = volumes)
 
     @Test
     fun case1_same_provider_equal_ids_merge() {
@@ -91,48 +87,71 @@ class SyncMergeTest {
     }
 
     @Test
-    fun winner_unions_completed_volumes_across_records() {
-        val local = record(completedVolumes = listOf(VolumeChapterKey(null, 1.0)), updatedAt = 100)
-        val remote = record(completedVolumes = listOf(VolumeChapterKey(null, 2.0)), updatedAt = 200)
+    fun winner_keeps_both_completed_chapters_when_they_dont_conflict() {
+        val local = record(volumes = listOf(volume(number = 1.0, completed = true, updatedAt = 100)))
+        val remote = record(volumes = listOf(volume(number = 2.0, completed = true, updatedAt = 200)))
 
         val merged = winner(listOf(local, remote))
 
         assertEquals(
-            setOf(VolumeChapterKey(null, 1.0), VolumeChapterKey(null, 2.0)),
-            merged.completedVolumes.toSet(),
-            "completion is monotonic -- a union never needs a timestamp to arbitrate",
+            setOf(volume(number = 1.0, completed = true, updatedAt = 100), volume(number = 2.0, completed = true, updatedAt = 200)),
+            merged.volumes.toSet(),
+            "different chapters never conflict, so both survive regardless of which side is newer",
         )
     }
 
     @Test
-    fun winner_keeps_the_newest_inProgressVolumes_list_wholesale() {
-        val older = record(inProgressVolumes = listOf(InProgressVolume(null, 5.0, 10)), updatedAt = 100)
-        val newer = record(inProgressVolumes = listOf(InProgressVolume(null, 5.0, 50)), updatedAt = 200)
+    fun winner_picks_the_newer_entry_for_the_same_chapter() {
+        val older = record(volumes = listOf(volume(number = 5.0, completed = false, updatedAt = 100, lastPageIndex = 10)))
+        val newer = record(volumes = listOf(volume(number = 5.0, completed = false, updatedAt = 200, lastPageIndex = 50)))
 
         val merged = winner(listOf(older, newer))
 
-        assertEquals(listOf(InProgressVolume(null, 5.0, 50)), merged.inProgressVolumes)
-        assertEquals(200, merged.updatedAt)
+        assertEquals(listOf(volume(number = 5.0, completed = false, updatedAt = 200, lastPageIndex = 50)), merged.volumes)
     }
 
     @Test
-    fun winner_ties_break_by_whichever_record_is_encountered_first() {
-        val first = record(inProgressVolumes = listOf(InProgressVolume(null, 5.0, 10)), updatedAt = 100)
-        val second = record(inProgressVolumes = listOf(InProgressVolume(null, 5.0, 99)), updatedAt = 100)
+    fun winner_ties_break_by_whichever_entry_is_encountered_first() {
+        val first = record(volumes = listOf(volume(number = 5.0, completed = false, updatedAt = 100, lastPageIndex = 10)))
+        val second = record(volumes = listOf(volume(number = 5.0, completed = false, updatedAt = 100, lastPageIndex = 99)))
 
         // Deterministic given a fixed input order -- not meaningful beyond that, since there's
-        // no per-device tiebreak field anymore (PLAN.md §10).
-        assertEquals(listOf(InProgressVolume(null, 5.0, 10)), winner(listOf(first, second)).inProgressVolumes)
+        // no per-device tiebreak field (PLAN.md §10).
+        assertEquals(
+            listOf(volume(number = 5.0, completed = false, updatedAt = 100, lastPageIndex = 10)),
+            winner(listOf(first, second)).volumes,
+        )
     }
 
     @Test
-    fun winner_drops_an_inProgress_entry_that_another_record_has_since_completed() {
-        val stillInProgress = record(inProgressVolumes = listOf(InProgressVolume(null, 5.0, 10)), updatedAt = 100)
-        val finishedElsewhere = record(completedVolumes = listOf(VolumeChapterKey(null, 5.0)), updatedAt = 200)
+    fun winner_prefers_a_newer_completion_over_a_stale_inProgress_entry() {
+        val stillInProgress = record(volumes = listOf(volume(number = 5.0, completed = false, updatedAt = 100, lastPageIndex = 10)))
+        val finishedElsewhere = record(volumes = listOf(volume(number = 5.0, completed = true, updatedAt = 200)))
 
         val merged = winner(listOf(stillInProgress, finishedElsewhere))
 
-        assertEquals(listOf(VolumeChapterKey(null, 5.0)), merged.completedVolumes)
-        assertTrue(merged.inProgressVolumes.isEmpty(), "a stale in-progress marker must never resurrect a finished chapter")
+        assertEquals(
+            listOf(volume(number = 5.0, completed = true, updatedAt = 200)),
+            merged.volumes,
+            "a stale in-progress marker must never resurrect as the winner once another device has finished it",
+        )
+    }
+
+    @Test
+    fun winner_lets_a_fresher_local_unread_retract_a_stale_remote_completion() {
+        // The exact scenario reported live: a series was fully read and synced long ago: the
+        // remote backup still says complete. The device resets that chapter back to unread
+        // (a real, fresh local write) -- that fresher write must win, not get silently
+        // overridden back to "complete" by the old backup on the next sync (PLAN.md §10).
+        val staleRemoteCompletion = record(volumes = listOf(volume(number = 1.0, completed = true, updatedAt = 1_000)))
+        val freshLocalUnread = record(volumes = listOf(volume(number = 1.0, completed = false, updatedAt = 50_000, lastPageIndex = 0)))
+
+        val merged = winner(listOf(staleRemoteCompletion, freshLocalUnread))
+
+        assertEquals(
+            listOf(volume(number = 1.0, completed = false, updatedAt = 50_000, lastPageIndex = 0)),
+            merged.volumes,
+            "an explicit un-read is a real write and must be able to win a merge, same as a completion",
+        )
     }
 }

@@ -3,14 +3,13 @@ package com.oliver.heyme.mangazuki
 import com.oliver.heyme.mangazuki.core.data.LibraryRepository
 import com.oliver.heyme.mangazuki.core.domain.MetadataAliasRow
 import com.oliver.heyme.mangazuki.core.domain.SyncProgressRow
-import com.oliver.heyme.mangazuki.core.sync.InProgressVolume
 import com.oliver.heyme.mangazuki.core.sync.MetadataAliasBackend
 import com.oliver.heyme.mangazuki.core.sync.MetadataAliasRecord
 import com.oliver.heyme.mangazuki.core.sync.NoOpMetadataAliasBackend
 import com.oliver.heyme.mangazuki.core.sync.SeriesKey
 import com.oliver.heyme.mangazuki.core.sync.SeriesProgressRecord
 import com.oliver.heyme.mangazuki.core.sync.SyncBackend
-import com.oliver.heyme.mangazuki.core.sync.VolumeChapterKey
+import com.oliver.heyme.mangazuki.core.sync.VolumeProgress
 import com.oliver.heyme.mangazuki.core.sync.bridgedWith
 import com.oliver.heyme.mangazuki.core.sync.resolveAliasWinners
 import com.oliver.heyme.mangazuki.core.sync.resolveSyncGroups
@@ -61,10 +60,10 @@ class ProgressSyncCoordinator(
         val winners = resolveSyncGroups(bridged).map { winner(it) }
 
         winners.forEach { record ->
-            // A chapter this device hasn't scanned yet (the file lives only on another device)
-            // is simply skipped here -- it still round-trips through push() below untouched, so
-            // a later device with that file can still apply it.
-            record.completedVolumes.forEach { volume ->
+            record.volumes.forEach { volume ->
+                // A chapter this device hasn't scanned yet (the file lives only on another
+                // device) is simply skipped here -- it still round-trips through push() below
+                // untouched, so a later device with that file can still apply it.
                 val chapterId = repository.resolveLocalChapterId(
                     record.key.provider, record.key.externalId, record.key.normalizedTitle,
                     volume.volume, volume.number,
@@ -73,15 +72,13 @@ class ProgressSyncCoordinator(
                 // time (it may not have opened it yet) -- Int.MAX_VALUE is a safe "fully read"
                 // sentinel, since every reader/UI read of lastPageIndex already clamps to the
                 // chapter's own actual page count (ReaderScreen's pager, SeriesScreen's percent
-                // ring) rather than trusting it as an absolute index.
-                repository.applyProgressIfNewer(chapterId, Int.MAX_VALUE, true, record.updatedAt, "")
-            }
-            record.inProgressVolumes.forEach { volume ->
-                val chapterId = repository.resolveLocalChapterId(
-                    record.key.provider, record.key.externalId, record.key.normalizedTitle,
-                    volume.volume, volume.number,
-                ) ?: return@forEach
-                repository.applyProgressIfNewer(chapterId, volume.lastPageIndex, false, record.updatedAt, "")
+                // ring) rather than trusting it as an absolute index. Each entry's OWN updatedAt
+                // is passed through here (not some series-wide aggregate) -- applyProgressIfNewer
+                // uses it as that chapter's new local timestamp, and an inflated one would make a
+                // chapter this sync didn't actually touch look fresher than it really is on the
+                // next merge.
+                val lastPageIndex = if (volume.completed) Int.MAX_VALUE else volume.lastPageIndex
+                repository.applyProgressIfNewer(chapterId, lastPageIndex, volume.completed, volume.updatedAt, "")
             }
         }
 
@@ -93,19 +90,17 @@ class ProgressSyncCoordinator(
 }
 
 /** Groups this device's per-chapter progress rows into one [SeriesProgressRecord] per series
- * (PLAN.md §10) -- the local equivalent of what [SeriesRecordDto] represents on the wire.
- * `updatedAt` is the max across the series' chapters: the single timestamp [winner] treats the
- * whole record's [SeriesProgressRecord.inProgressVolumes] list as having been written at. */
+ * (PLAN.md §10) -- the local equivalent of what [SeriesRecordDto] represents on the wire. Each
+ * row keeps its own `updatedAt` (2026-07-07) rather than collapsing to one timestamp per series
+ * -- that per-chapter granularity is exactly what lets [winner] resolve an explicit un-read as a
+ * real, individually-timestamped write instead of a series-wide aggregate swallowing it. */
 private fun List<SyncProgressRow>.toSeriesProgressRecords(): List<SeriesProgressRecord> =
     groupBy { Triple(it.provider, it.externalId, it.normalizedTitle) }
         .map { (key, rows) ->
             val (provider, externalId, normalizedTitle) = key
             SeriesProgressRecord(
                 key = SeriesKey(provider, externalId, normalizedTitle),
-                completedVolumes = rows.filter { it.completed }.map { VolumeChapterKey(it.volume, it.number) },
-                inProgressVolumes = rows.filterNot { it.completed }
-                    .map { InProgressVolume(it.volume, it.number, it.lastPageIndex) },
-                updatedAt = rows.maxOf { it.updatedAt },
+                volumes = rows.map { VolumeProgress(it.volume, it.number, it.completed, it.lastPageIndex, it.updatedAt) },
             )
         }
 

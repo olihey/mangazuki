@@ -37,32 +37,31 @@ fun resolveSyncGroups(records: List<SeriesProgressRecord>): List<List<SeriesProg
 }
 
 /**
- * Merges a group of [SeriesProgressRecord]s referring to the same real series (PLAN.md §10) —
- * unlike the old per-chapter design, there's no single "winning" record to pick wholesale:
+ * Merges a group of [SeriesProgressRecord]s referring to the same real series (PLAN.md §10,
+ * revised 2026-07-07) — genuinely per-chapter last-write-wins, replacing the old "completion is
+ * monotonic, union forever" design:
  *
- *  - [SeriesProgressRecord.completedVolumes] is unioned across every record in the group.
- *    Completion is monotonic (a device never un-reads a chapter behind sync's back), so a
- *    plain union is always safe and needs no timestamp to arbitrate.
- *  - [SeriesProgressRecord.inProgressVolumes] is taken wholesale from whichever record has the
- *    newest [SeriesProgressRecord.updatedAt] (last-write-wins for the *whole list* at once, not
- *    per entry — there's no per-device tiebreak field anymore, so an exact tie keeps whichever
- *    record [Iterable.maxByOrNull] encounters first, which is deterministic given a fixed input
- *    order but not meaningful beyond that), then filtered to drop any entry that the merged
- *    [completedVolumes] now covers -- an in-progress marker from the losing/older side must
- *    never resurrect a chapter another device has since finished.
- *  - The merged [SeriesProgressRecord.key] and [SeriesProgressRecord.updatedAt] both come from
- *    whichever record is newest, same as [completedVolumes]'s union doesn't touch identity.
+ *  - Every [VolumeProgress] across the group, from every record, is bucketed by its (volume,
+ *    number) key. Within a bucket, whichever entry has the newest `updatedAt` wins outright —
+ *    completed or not. An explicit un-read is therefore just a fresher write that beats a stale
+ *    completed entry the same way a completion beats a stale in-progress one; there's no special
+ *    case for either direction. An exact `updatedAt` tie keeps whichever entry
+ *    [Iterable.reduce] encounters first, deterministic given a fixed input order but not
+ *    meaningful beyond that (no per-device tiebreak field).
+ *  - The merged [SeriesProgressRecord.key] comes from whichever input record has the latest
+ *    entry overall (by its own volumes' max `updatedAt`) — only matters for which raw title
+ *    spelling survives when bridging title-only records (case 3); a record with no volumes at
+ *    all never contributes anything to the merge either way.
  */
 fun winner(group: List<SeriesProgressRecord>): SeriesProgressRecord {
-    val completedMerged = group.flatMap { it.completedVolumes }.distinct()
-    val newest = group.reduce { a, b -> if (b.updatedAt > a.updatedAt) b else a }
-    val inProgressMerged = newest.inProgressVolumes.filterNot { volume ->
-        completedMerged.any { it.volume == volume.volume && it.number == volume.number }
+    val merged = group.flatMap { it.volumes }
+        .groupBy { it.volume to it.number }
+        .values
+        .map { entries -> entries.reduce { a, b -> if (b.updatedAt > a.updatedAt) b else a } }
+    val newestKeyRecord = group.reduce { a, b ->
+        val aMax = a.volumes.maxOfOrNull { it.updatedAt } ?: Long.MIN_VALUE
+        val bMax = b.volumes.maxOfOrNull { it.updatedAt } ?: Long.MIN_VALUE
+        if (bMax > aMax) b else a
     }
-    return SeriesProgressRecord(
-        key = newest.key,
-        completedVolumes = completedMerged,
-        inProgressVolumes = inProgressMerged,
-        updatedAt = group.maxOf { it.updatedAt },
-    )
+    return SeriesProgressRecord(key = newestKeyRecord.key, volumes = merged)
 }

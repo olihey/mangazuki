@@ -69,9 +69,16 @@ fun MangaDetailScreen(
     chapters: List<ChapterCard>,
     titleLanguage: TitleLanguage,
     onBack: () -> Unit,
+    selectionMode: Boolean,
+    selectedIds: Set<String>,
     onChapterClick: (String) -> Unit,
     onFixMetadata: () -> Unit,
     onLongClickChapter: (String) -> Unit,
+    onSelectAll: () -> Unit,
+    onSelectNone: () -> Unit,
+    onMarkRead: () -> Unit,
+    onMarkUnread: () -> Unit,
+    onExitSelectionMode: () -> Unit,
 ) {
     val archivo = mangaArchivo()
     val anton = mangaAnton()
@@ -94,11 +101,19 @@ fun MangaDetailScreen(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.fillMaxWidth()) {
                     DetailHero(series, title, chapters, readCount, nextUnread, onChapterClick, archivo, anton)
-                    ChaptersHeader(chapters.size, archivo, anton)
+                    ChaptersHeader(
+                        chapters.size, selectionMode, selectedIds.size,
+                        onSelectAll, onSelectNone, onMarkRead, onMarkUnread, onExitSelectionMode,
+                        archivo, anton,
+                    )
                 }
             }
             gridItemsIndexed(chapters, key = { _, c -> c.id }) { index, c ->
-                ChapterTile(c, index, isNext = c.id == nextUnread?.id, onClick = { onChapterClick(c.id) }, onLongClick = { onLongClickChapter(c.id) }, archivo)
+                ChapterTile(
+                    c, index, isNext = c.id == nextUnread?.id,
+                    selectionMode = selectionMode, selected = c.id in selectedIds,
+                    onClick = { onChapterClick(c.id) }, onLongClick = { onLongClickChapter(c.id) }, archivo,
+                )
             }
         }
         DetailTopBar(onBack, onFixMetadata, archivo)
@@ -289,17 +304,49 @@ private fun DetailChip(archivo: FontFamily, content: @Composable androidx.compos
 }
 
 @Composable
-private fun ChaptersHeader(count: Int, archivo: FontFamily, anton: FontFamily) {
+private fun ChaptersHeader(
+    count: Int,
+    selectionMode: Boolean,
+    selectedCount: Int,
+    onSelectAll: () -> Unit,
+    onSelectNone: () -> Unit,
+    onMarkRead: () -> Unit,
+    onMarkUnread: () -> Unit,
+    onExitSelectionMode: () -> Unit,
+    archivo: FontFamily,
+    anton: FontFamily,
+) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 18.dp).padding(bottom = 6.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text("CHAPTERS", color = MangaColors.Text, fontFamily = anton, fontSize = 24.sp)
-        Text(
-            "$count " + if (count == 1) "TOTAL" else "TOTAL",
-            color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.5.sp,
-        )
+        if (selectionMode) {
+            Text(
+                "$selectedCount " + if (selectedCount == 1) "CHAPTER SELECTED" else "CHAPTERS SELECTED",
+                color = MangaColors.Text, fontFamily = anton, fontSize = 24.sp,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                ShelfPillButton(onClick = onSelectAll) { Text("All", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onSelectNone) { Text("None", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onMarkRead) { Text("Read", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onMarkUnread) { Text("Unread", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                Row(
+                    Modifier.clip(RoundedCornerShape(12.dp)).background(MangaColors.Accent)
+                        .clickable(onClick = onExitSelectionMode).padding(horizontal = 16.dp, vertical = 11.dp),
+                ) {
+                    Text("Done", color = Color.White, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        } else {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("CHAPTERS", color = MangaColors.Text, fontFamily = anton, fontSize = 24.sp)
+                Text(
+                    "$count TOTAL",
+                    color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.5.sp,
+                )
+            }
+        }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(MangaColors.Divider).padding(bottom = 16.dp))
 }
@@ -310,6 +357,8 @@ private fun ChapterTile(
     chapter: ChapterCard,
     indexInList: Int,
     isNext: Boolean,
+    selectionMode: Boolean,
+    selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     archivo: FontFamily,
@@ -319,12 +368,19 @@ private fun ChapterTile(
     val titleColor = if (isNext) Color.White else if (chapter.completed) MangaColors.TextMuted2 else Color(0xFFE6E2DC)
 
     Column(Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f / 1.4f).clip(RoundedCornerShape(9.dp))) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(1f / 1.4f).clip(RoundedCornerShape(9.dp))
+                .let { if (selected) it.border(2.dp, MangaColors.Accent, RoundedCornerShape(9.dp)) else it },
+        ) {
             ShelfCoverImage(chapter.displayName, chapter.coverModel, null, null, Modifier.matchParentSize())
             Box(
                 Modifier.matchParentSize()
                     .background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.5f))),
             )
+            // Same dim treatment as the Library shelf's covers while picking (MangaShelfGrid.kt).
+            if (selectionMode && !selected) {
+                Box(Modifier.matchParentSize().background(MangaColors.Bg.copy(alpha = 0.55f)))
+            }
             Text(
                 numberValue, color = Color.White.copy(alpha = 0.92f), fontFamily = mangaAnton(), fontSize = 26.sp, lineHeight = 26.sp,
                 modifier = Modifier.align(Alignment.BottomStart).padding(start = 9.dp, bottom = 7.dp),
@@ -336,7 +392,9 @@ private fun ChapterTile(
                         .background(MangaColors.Accent, RoundedCornerShape(6.dp)).padding(horizontal = 7.dp, vertical = 3.dp),
                 )
             }
-            if (chapter.completed) {
+            if (selectionMode) {
+                ShelfSelectionBadge(selected, Modifier.align(Alignment.TopEnd).padding(7.dp))
+            } else if (chapter.completed) {
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(7.dp).size(22.dp).clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.45f)),

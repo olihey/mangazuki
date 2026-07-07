@@ -542,9 +542,10 @@ private fun ShelfCard(
 
 /** Selection-mode's stand-in for the read/total badge (same top-end corner) -- a filled accent
  * disc with a checkmark when selected, an outlined one otherwise, so the state reads at a glance
- * without needing the [selectionMode] dim treatment on the cover to also do that job. */
+ * without needing the [selectionMode] dim treatment on the cover to also do that job. Shared with
+ * [MangaDetailScreen]'s chapter tiles, which use the same visual language for the same reason. */
 @Composable
-private fun ShelfSelectionBadge(selected: Boolean, modifier: Modifier = Modifier) {
+internal fun ShelfSelectionBadge(selected: Boolean, modifier: Modifier = Modifier) {
     Box(
         modifier.size(24.dp).clip(CircleShape)
             .background(if (selected) MangaColors.Accent else Color.Black.copy(alpha = 0.45f))

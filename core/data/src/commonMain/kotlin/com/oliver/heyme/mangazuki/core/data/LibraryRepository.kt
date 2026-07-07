@@ -77,6 +77,52 @@ class LibraryRepository(db: MangaDatabase) {
             }
         }
 
+    /** Most-recently-added chapters across the whole library (PLAN.md, "Your Page" dashboard's
+     * "Fresh chapters" feed) -- reactive, unlike [nextUnreadChapter], since this feed has no
+     * natural "refresh trigger" of its own the way a specific series' progress does. */
+    fun observeRecentChapters(limit: Long): Flow<List<RecentChapterCard>> =
+        q.selectRecentChapters(limit).asFlow().mapToList(ioDispatcher).map { rows ->
+            rows.map { r ->
+                RecentChapterCard(
+                    chapterId = r.chapter_id,
+                    seriesId = r.series_id,
+                    seriesTitle = r.series_title,
+                    seriesTitleRomaji = r.series_title_romaji,
+                    seriesTitleEnglish = r.series_title_english,
+                    seriesTitleNative = r.series_title_native,
+                    displayName = r.display_name,
+                    volume = r.volume,
+                    number = r.number,
+                    dateAdded = r.date_added,
+                    coverModel = coverModel(r.cover_path, r.format, r.locator),
+                )
+            }
+        }
+
+    /** The first not-yet-completed chapter in [seriesId] (same ordering/definition as
+     * `MangaDetailScreen`'s `nextUnread`), for the "Your Page" dashboard's "Jump back in" resume
+     * button -- a one-shot snapshot rather than a Flow, since the dashboard only needs to refresh
+     * this when its own in-progress list changes, not on every unrelated write. */
+    suspend fun nextUnreadChapter(seriesId: String): ChapterCard? = withContext(ioDispatcher) {
+        q.selectChaptersForSeriesWithProgress(seriesId).executeAsList().firstOrNull { it.completed != 1L }?.let { r ->
+            ChapterCard(
+                id = r.id,
+                seriesId = r.series_id,
+                sourceId = r.source_id,
+                locator = r.locator,
+                format = r.format,
+                displayName = r.display_name,
+                volume = r.volume,
+                number = r.number,
+                pageCount = r.page_count?.toInt(),
+                size = r.size,
+                lastPageIndex = r.last_page_index?.toInt() ?: 0,
+                completed = r.completed == 1L,
+                coverModel = coverModel(r.cover_path, r.format, r.locator),
+            )
+        }
+    }
+
     /**
      * Records real page counts once counted on demand by the series screen (not at scan time),
      * feeding the read-percentage overlay (PLAN.md §7.2). Batched in one transaction so a series

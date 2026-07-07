@@ -61,23 +61,27 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.oliver.heyme.mangazuki.core.data.ChapterCard
 import com.oliver.heyme.mangazuki.core.data.LibraryCard
+import com.oliver.heyme.mangazuki.core.data.RecentChapterCard
+
+/** The masthead's headline doubles as a two-way tab switcher -- local-only UI state, not
+ * persisted or known to [LibraryViewModel], since [YourPageContent] derives everything it shows
+ * straight from the view model's own flows and needs nothing tab-specific remembered. */
+private enum class LibraryTab { LIBRARY, YOUR_PAGE }
 
 /**
  * The "Manga Library Tablet" design (Claude Design, imported 2026-07-06) applied to normal
- * library browsing -- entering selection mode (long-press, bulk mark read/unread) falls back to
- * the old Material grid, since that's a secondary, infrequent tool the design doesn't cover.
- * `LibraryScreen` renders this instead of its own `Scaffold` whenever `!selectionMode`.
+ * library browsing, plus the "Manga Welcome Tablet" design ([YourPageContent], imported
+ * 2026-07-07) behind the YOUR PAGE tab -- entering selection mode (long-press, bulk mark
+ * read/unread) falls back to the old Material grid, since that's a secondary, infrequent tool
+ * neither design covers. `LibraryScreen` renders this instead of its own `Scaffold` whenever
+ * `!selectionMode`.
  *
  * Uses real cover art via the existing [AsyncImage]/[MangaCover] pipeline, unlike the design's
  * mocked flat-gradient placeholders -- those are reused here only for the loading/no-cover
  * fallback state, the same role [CoverPlaceholder]'s letter tile already played.
  */
-/** The masthead's headline now doubles as a two-way tab switcher (LIBRARY vs. the still-empty
- * YOUR_PAGE) -- local-only UI state, not persisted or known to [LibraryViewModel], since there's
- * nothing behind YOUR_PAGE yet for any other screen to care about. */
-private enum class LibraryTab { LIBRARY, YOUR_PAGE }
-
 @Composable
 fun MangaShelfGrid(
     viewModel: LibraryViewModel,
@@ -90,6 +94,9 @@ fun MangaShelfGrid(
     sort: SortMode,
     ascending: Boolean,
     filter: LibraryFilter,
+    inProgress: List<LibraryCard>,
+    resumeChapters: Map<String, ChapterCard>,
+    recentChapters: List<RecentChapterCard>,
     titleLanguage: TitleLanguage,
     /** Opens the "Local folder vs. SMB share" chooser (PLAN.md §6) -- NOT the raw SAF picker
      * directly. Both the re-grant banner and the "no source" empty state need the same choice
@@ -97,6 +104,7 @@ fun MangaShelfGrid(
      * could equally have been an SMB share. */
     onAddSource: () -> Unit,
     onSeriesClick: (String) -> Unit,
+    onChapterClick: (seriesId: String, chapterId: String) -> Unit,
     onSettingsClick: () -> Unit,
     onLongClickSeries: (String) -> Unit,
 ) {
@@ -107,9 +115,7 @@ fun MangaShelfGrid(
     Column(Modifier.fillMaxSize().background(MangaColors.Bg)) {
         ShelfMasthead(progress, enrichProgress, canRescan, onRescan = viewModel::rescan, onSettingsClick, activeTab, onTabChange = { activeTab = it }, archivo, anton)
         if (activeTab == LibraryTab.YOUR_PAGE) {
-            // Nothing here yet -- just confirming the tab switch itself works before building
-            // out what "Your Page" actually shows.
-            Box(Modifier.fillMaxSize())
+            YourPageContent(inProgress, resumeChapters, recentChapters, titleLanguage, onSeriesClick, onChapterClick)
         } else {
             if (needsReGrant) ShelfReGrantBanner(onAddSource, archivo)
             when {

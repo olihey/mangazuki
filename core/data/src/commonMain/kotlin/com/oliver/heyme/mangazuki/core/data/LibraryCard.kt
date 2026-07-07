@@ -52,6 +52,24 @@ data class ChapterCard(
     val coverModel: String?,
 )
 
+/** A chapter for the "Your Page" dashboard's "Fresh chapters" feed (most recently added across
+ * the whole library, not scoped to one series like [ChapterCard]) -- carries its series' title in
+ * every language so the feed can respect the same "series title" display setting as everywhere
+ * else, without a second query per card. */
+data class RecentChapterCard(
+    val chapterId: String,
+    val seriesId: String,
+    val seriesTitle: String,
+    val seriesTitleRomaji: String?,
+    val seriesTitleEnglish: String?,
+    val seriesTitleNative: String?,
+    val displayName: String,
+    val volume: Double?,
+    val number: Double?,
+    val dateAdded: Long,
+    val coverModel: String?,
+)
+
 /** A chapter's last-known scan state, for the scanner's skip-cache (§5) to decide whether a file
  * needs full reprocessing. [seriesTitle] is that chapter's series' current `title` -- only
  * meaningful for a root-level file, whose series is resolved per-file rather than fixed by a

@@ -59,6 +59,7 @@ fun LibraryScreen(
     viewModel: LibraryViewModel,
     onPickFolder: () -> Unit,
     onSeriesClick: (String) -> Unit,
+    onChapterClick: (seriesId: String, chapterId: String) -> Unit,
     onSettingsClick: () -> Unit,
     titleLanguage: TitleLanguage,
 ) {
@@ -77,6 +78,9 @@ fun LibraryScreen(
     val sort by viewModel.sort.collectAsState()
     val ascending by viewModel.ascending.collectAsState()
     val filter by viewModel.filter.collectAsState()
+    val inProgress by viewModel.inProgress.collectAsState()
+    val resumeChapters by viewModel.resumeChapters.collectAsState()
+    val recentChapters by viewModel.recentChapters.collectAsState()
     val selectionMode by viewModel.selectionMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
 
@@ -110,9 +114,13 @@ fun LibraryScreen(
             sort = sort,
             ascending = ascending,
             filter = filter,
+            inProgress = inProgress,
+            resumeChapters = resumeChapters,
+            recentChapters = recentChapters,
             titleLanguage = titleLanguage,
             onAddSource = openChooser,
             onSeriesClick = onSeriesClick,
+            onChapterClick = onChapterClick,
             onSettingsClick = onSettingsClick,
             onLongClickSeries = viewModel::enterSelectionMode,
         )

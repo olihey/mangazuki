@@ -30,6 +30,9 @@ fun App(graph: AppGraph, onPickFolder: () -> Unit, onSignIn: () -> Unit = {}, on
                     viewModel = graph.libraryViewModel,
                     onPickFolder = onPickFolder,
                     onSeriesClick = { seriesId -> navController.navigate("series/$seriesId") },
+                    // "Your Page" resume/fresh-chapter cards jump straight into the reader,
+                    // skipping the series screen (PLAN.md).
+                    onChapterClick = { seriesId, chapterId -> navController.navigate("reader/$seriesId/$chapterId") },
                     onSettingsClick = { navController.navigate("settings") },
                     titleLanguage = titleLanguage,
                 )

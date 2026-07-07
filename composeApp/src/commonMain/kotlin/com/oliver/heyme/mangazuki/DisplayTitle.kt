@@ -1,6 +1,7 @@
 package com.oliver.heyme.mangazuki
 
 import com.oliver.heyme.mangazuki.core.data.LibraryCard
+import com.oliver.heyme.mangazuki.core.data.RecentChapterCard
 import com.oliver.heyme.mangazuki.core.domain.Series
 import com.oliver.heyme.mangazuki.core.metadata.RemoteWork
 
@@ -19,6 +20,16 @@ fun Series.displayTitle(language: TitleLanguage): String = when (language) {
     TitleLanguage.ANILIST_ROMAJI -> titleRomaji ?: title
     TitleLanguage.ANILIST_ENGLISH -> titleEnglish ?: title
     TitleLanguage.ANILIST_NATIVE -> titleNative ?: title
+}
+
+/** Same setting, applied to a "Your Page" dashboard "Fresh chapters" card, whose series title
+ * comes pre-joined onto the chapter row ([RecentChapterCard]) rather than from a [Series]/
+ * [LibraryCard]. */
+fun RecentChapterCard.displayTitle(language: TitleLanguage): String = when (language) {
+    TitleLanguage.FILE -> seriesTitle
+    TitleLanguage.ANILIST_ROMAJI -> seriesTitleRomaji ?: seriesTitle
+    TitleLanguage.ANILIST_ENGLISH -> seriesTitleEnglish ?: seriesTitle
+    TitleLanguage.ANILIST_NATIVE -> seriesTitleNative ?: seriesTitle
 }
 
 /** Same setting, applied to a Fix Metadata search result (PLAN.md §9.1) — there's no "file"

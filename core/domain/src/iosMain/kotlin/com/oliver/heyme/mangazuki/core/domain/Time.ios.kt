@@ -15,3 +15,8 @@ actual fun formatDateTime(epochMillis: Long): String {
     }
     return formatter.stringFromDate(NSDate(timeIntervalSince1970 = epochMillis / 1000.0))
 }
+
+actual fun formatShortDate(epochMillis: Long): String {
+    val formatter = NSDateFormatter().apply { dateFormat = "MMM d" }
+    return formatter.stringFromDate(NSDate(timeIntervalSince1970 = epochMillis / 1000.0))
+}

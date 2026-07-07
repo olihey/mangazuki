@@ -13,3 +13,8 @@ private val dateTimeFormatter =
 
 actual fun formatDateTime(epochMillis: Long): String =
     Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(dateTimeFormatter)
+
+private val shortDateFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
+
+actual fun formatShortDate(epochMillis: Long): String =
+    Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(shortDateFormatter)

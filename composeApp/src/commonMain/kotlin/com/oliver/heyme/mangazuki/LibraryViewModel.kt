@@ -1,7 +1,9 @@
 package com.oliver.heyme.mangazuki
 
+import com.oliver.heyme.mangazuki.core.data.ChapterCard
 import com.oliver.heyme.mangazuki.core.data.LibraryCard
 import com.oliver.heyme.mangazuki.core.data.LibraryRepository
+import com.oliver.heyme.mangazuki.core.data.RecentChapterCard
 import com.oliver.heyme.mangazuki.core.domain.normalizeSortTitle
 import com.oliver.heyme.mangazuki.core.scanner.LibraryScanner
 import com.oliver.heyme.mangazuki.core.source.MangaSource
@@ -12,10 +14,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class ScanProgress(val seriesFound: Int, val chaptersFound: Int)
+
+/** How many series [LibraryViewModel.inProgress] prefetches a resume chapter for -- "Your Page"
+ * dashboard's "Jump back in" section only ever shows this many. */
+private const val JUMP_BACK_IN_COUNT = 2
+
+/** How many rows [LibraryViewModel.recentChapters] pulls from the DB -- the dashboard's "Fresh
+ * chapters" grid shows a subset of this. */
+private const val FRESH_CHAPTERS_LIMIT = 12L
 
 /** [done]/[total] series processed by the current [MetadataEnricher.enrichPending] pass
  * (PLAN.md §9.2) — "processed" includes matched, checked-no-match, and failed alike. */
@@ -117,6 +128,26 @@ class LibraryViewModel(
                 list.sortedWith(if (inputs.ascending) comparator else comparator.reversed())
             }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Partially-read series (some progress, not finished), most-recently-read first -- the
+     * "Your Page" dashboard's own view of the library (PLAN.md), independent of the Library
+     * tab's own search/sort/filter state. */
+    val inProgress: StateFlow<List<LibraryCard>> = allCards.map { list ->
+        list.filter { it.chapterCount > 0 && it.unreadCount in 1 until it.chapterCount }
+            .sortedByDescending { it.latestRead ?: 0L }
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Most-recently-added chapters across the whole library -- the dashboard's "Fresh chapters"
+     * feed (PLAN.md). */
+    val recentChapters: StateFlow<List<RecentChapterCard>> =
+        repository.observeRecentChapters(FRESH_CHAPTERS_LIMIT)
+            .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The chapter each of [inProgress]'s top few series would resume into, keyed by series id
+     * -- one-shot lookups (`nextUnreadChapter`), refreshed whenever the in-progress list itself
+     * changes (a new read, a rescan, etc.) rather than on every unrelated write. */
+    private val _resumeChapters = MutableStateFlow<Map<String, ChapterCard>>(emptyMap())
+    val resumeChapters: StateFlow<Map<String, ChapterCard>> = _resumeChapters
+
     init {
         scope.launch {
             // savedLocalRoot() holds a raw SAF root URI for a LOCAL source, or an SmbConfig
@@ -136,6 +167,13 @@ class LibraryViewModel(
         scope.launch { sort.collect { prefs.sort = it } }
         scope.launch { ascending.collect { prefs.ascending = it } }
         scope.launch { filter.collect { prefs.filter = it } }
+        scope.launch {
+            inProgress.collect { list ->
+                _resumeChapters.value = list.take(JUMP_BACK_IN_COUNT)
+                    .mapNotNull { card -> repository.nextUnreadChapter(card.id)?.let { card.id to it } }
+                    .toMap()
+            }
+        }
     }
 
     fun onFolderPicked(rootLocator: String, displayName: String) {

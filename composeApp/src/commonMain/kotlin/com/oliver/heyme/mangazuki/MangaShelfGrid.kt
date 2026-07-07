@@ -64,12 +64,10 @@ import coil3.compose.AsyncImage
 import com.oliver.heyme.mangazuki.core.data.LibraryCard
 
 /**
- * The "Manga Library Tablet" design (Claude Design, imported 2026-07-06) applied to the
- * library's GRID view only. List/Detailed keep the plain Material look unchanged -- the design
- * has no equivalent for those -- and entering selection mode (long-press, bulk mark read/unread)
- * falls back to the old Material grid too, since that's a secondary, infrequent tool the design
- * doesn't cover either. `LibraryScreen` renders this instead of its own `Scaffold` whenever
- * `viewMode == GRID && !selectionMode`.
+ * The "Manga Library Tablet" design (Claude Design, imported 2026-07-06) applied to normal
+ * library browsing -- entering selection mode (long-press, bulk mark read/unread) falls back to
+ * the old Material grid, since that's a secondary, infrequent tool the design doesn't cover.
+ * `LibraryScreen` renders this instead of its own `Scaffold` whenever `!selectionMode`.
  *
  * Uses real cover art via the existing [AsyncImage]/[MangaCover] pipeline, unlike the design's
  * mocked flat-gradient placeholders -- those are reused here only for the loading/no-cover
@@ -87,7 +85,6 @@ fun MangaShelfGrid(
     sort: SortMode,
     ascending: Boolean,
     filter: LibraryFilter,
-    viewMode: ViewMode,
     titleLanguage: TitleLanguage,
     /** Opens the "Local folder vs. SMB share" chooser (PLAN.md §6) -- NOT the raw SAF picker
      * directly. Both the re-grant banner and the "no source" empty state need the same choice
@@ -113,7 +110,7 @@ fun MangaShelfGrid(
             cards.isEmpty() && progress == null && query.isBlank() && !needsReGrant ->
                 ShelfEmptyState("No series found in this library yet.", archivo)
             else -> {
-                ShelfToolbar(viewModel, query, sort, ascending, filter, viewMode, archivo)
+                ShelfToolbar(viewModel, query, sort, ascending, filter, archivo)
                 ShelfHeaderRow(filter, cards.size, archivo, anton)
                 ShelfGrid(cards, titleLanguage, onSeriesClick, onLongClickSeries, archivo, anton)
             }
@@ -213,7 +210,6 @@ private fun ShelfToolbar(
     sort: SortMode,
     ascending: Boolean,
     filter: LibraryFilter,
-    viewMode: ViewMode,
     archivo: FontFamily,
 ) {
     Row(
@@ -293,12 +289,6 @@ private fun ShelfToolbar(
                     )
                 }
             }
-        }
-        ShelfPillButton(onClick = viewModel::cycleViewMode) {
-            Text(
-                viewMode.name.lowercase().replaceFirstChar { it.uppercase() },
-                color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-            )
         }
     }
 }
@@ -410,7 +400,7 @@ private fun ShelfCard(
 /** Real cover art via the existing Coil pipeline, layered over a deterministic two-tone
  * gradient (picked from the design's own mocked palette) instead of a flat placeholder color --
  * only visible while the real cover is loading or missing, same role [CoverPlaceholder]'s
- * letter tile plays for the other view modes. */
+ * letter tile plays in the selection-mode fallback grid. */
 @Composable
 internal fun ShelfCoverImage(title: String, model: String?, seriesId: String?, externalId: String?, modifier: Modifier) {
     val (c1, c2) = remember(seriesId ?: title) { mangaGradientFor(seriesId ?: title) }

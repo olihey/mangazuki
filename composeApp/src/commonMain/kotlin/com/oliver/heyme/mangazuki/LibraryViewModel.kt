@@ -24,7 +24,6 @@ data class EnrichProgress(val done: Int, val total: Int)
 enum class SortMode(val label: String) {
     NAME("Name"), RECENTLY_ADDED("Recently added"), RECENTLY_READ("Recently read"), RELEASE_START("Release start")
 }
-enum class ViewMode { LIST, GRID, DETAILED }
 
 /** Library filter (PLAN.md §7.1): "Hide matched" is the AniList-match counterpart of "Hide
  * read" — hides series that already have an `external_id`, for focusing on what Fix Metadata
@@ -78,9 +77,6 @@ class LibraryViewModel(
     val sort = MutableStateFlow(prefs.sort)
     val ascending = MutableStateFlow(prefs.ascending)
     val filter = MutableStateFlow(prefs.filter)
-    /** Always grid on a fresh launch, regardless of what was last used (cycleViewMode still
-     * switches within the session, it just isn't restored on restart). */
-    val viewMode = MutableStateFlow(ViewMode.GRID)
 
     /** Multi-select series for bulk mark read/unread (PLAN.md §7.5). */
     val selectionMode = MutableStateFlow(false)
@@ -212,9 +208,6 @@ class LibraryViewModel(
     }
 
     fun toggleDirection() { ascending.value = !ascending.value }
-    fun cycleViewMode() {
-        viewMode.value = ViewMode.entries[(viewMode.value.ordinal + 1) % ViewMode.entries.size]
-    }
 
     fun enterSelectionMode(seriesId: String) {
         selectionMode.value = true

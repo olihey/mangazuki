@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -26,9 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -81,7 +77,6 @@ fun LibraryScreen(
     val sort by viewModel.sort.collectAsState()
     val ascending by viewModel.ascending.collectAsState()
     val filter by viewModel.filter.collectAsState()
-    val viewMode by viewModel.viewMode.collectAsState()
     val selectionMode by viewModel.selectionMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
 
@@ -100,11 +95,10 @@ fun LibraryScreen(
         SmbConnectDialog(viewModel = viewModel, onDismiss = { showSmbDialog = false })
     }
 
-    // The redesigned "Manga Shelf" look (Claude Design, imported 2026-07-06) only covers Grid
-    // browsing -- List/Detailed keep the plain Material layout below unchanged, and entering
-    // selection mode (long-press, bulk mark read/unread) falls back to it too, since that's a
-    // secondary tool the design doesn't cover either.
-    if (!selectionMode && viewMode == ViewMode.GRID) {
+    // The redesigned "Manga Shelf" look (Claude Design, imported 2026-07-06) covers normal Grid
+    // browsing -- entering selection mode (long-press, bulk mark read/unread) falls back to the
+    // plain Material layout below, since that's a secondary tool the design doesn't cover.
+    if (!selectionMode) {
         MangaShelfGrid(
             viewModel = viewModel,
             progress = progress,
@@ -116,7 +110,6 @@ fun LibraryScreen(
             sort = sort,
             ascending = ascending,
             filter = filter,
-            viewMode = viewMode,
             titleLanguage = titleLanguage,
             onAddSource = openChooser,
             onSeriesClick = onSeriesClick,
@@ -155,7 +148,6 @@ fun LibraryScreen(
                         }
                     },
                     actions = {
-                        TextButton(onClick = viewModel::cycleViewMode) { Text(viewMode.name.lowercase().replaceFirstChar { it.uppercase() }) }
                         // Available during a metadata-fetch pass too, not just when fully idle --
                         // re-scanning now cancels a still-running enrichment pass rather than wait
                         // behind it (PLAN.md §9.2, 2026-07-06), so there's no reason to hide the
@@ -194,11 +186,7 @@ fun LibraryScreen(
                 val onLongClick: (String) -> Unit = { id ->
                     if (!selectionMode) viewModel.enterSelectionMode(id)
                 }
-                when (viewMode) {
-                    ViewMode.LIST -> ListLayout(cards, selectionMode, selectedIds, onClick, onLongClick, titleLanguage)
-                    ViewMode.GRID -> GridLayout(cards, selectionMode, selectedIds, onClick, onLongClick, titleLanguage)
-                    ViewMode.DETAILED -> DetailedLayout(cards, selectionMode, selectedIds, onClick, onLongClick, titleLanguage)
-                }
+                GridLayout(cards, selectionMode, selectedIds, onClick, onLongClick, titleLanguage)
             }
         }
     }
@@ -376,81 +364,6 @@ private fun LibraryControls(
                     }
                 }
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ListLayout(
-    cards: List<LibraryCard>,
-    selectionMode: Boolean,
-    selectedIds: Set<String>,
-    onClick: (String) -> Unit,
-    onLongClick: (String) -> Unit,
-    titleLanguage: TitleLanguage,
-) {
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(cards, key = { it.id }) { c ->
-            val title = c.displayTitle(titleLanguage)
-            ListItem(
-                modifier = Modifier.combinedClickable(onClick = { onClick(c.id) }, onLongClick = { onLongClick(c.id) }),
-                headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                supportingContent = { Text("${c.chapterCount} chapters · ${c.unreadCount} unread") },
-                leadingContent = {
-                    if (selectionMode) {
-                        Checkbox(checked = c.id in selectedIds, onCheckedChange = { onClick(c.id) })
-                    } else {
-                        Box {
-                            CoverPlaceholder(title, Modifier.size(40.dp, 56.dp), c.coverModel, c.id, c.externalId)
-                            SeriesReadStatusOverlay(c, Modifier.align(Alignment.BottomEnd), size = 16.dp)
-                            MetadataStatusOverlay(c, Modifier.align(Alignment.BottomStart), size = 16.dp)
-                        }
-                    }
-                },
-            )
-            HorizontalDivider()
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun DetailedLayout(
-    cards: List<LibraryCard>,
-    selectionMode: Boolean,
-    selectedIds: Set<String>,
-    onClick: (String) -> Unit,
-    onLongClick: (String) -> Unit,
-    titleLanguage: TitleLanguage,
-) {
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(cards, key = { it.id }) { c ->
-            val title = c.displayTitle(titleLanguage)
-            Row(
-                Modifier.fillMaxWidth()
-                    .combinedClickable(onClick = { onClick(c.id) }, onLongClick = { onLongClick(c.id) })
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (selectionMode) {
-                    Checkbox(checked = c.id in selectedIds, onCheckedChange = { onClick(c.id) })
-                } else {
-                    Box {
-                        CoverPlaceholder(title, Modifier.size(64.dp, 90.dp), c.coverModel, c.id, c.externalId)
-                        SeriesReadStatusOverlay(c, Modifier.align(Alignment.BottomEnd).padding(2.dp))
-                        MetadataStatusOverlay(c, Modifier.align(Alignment.BottomStart).padding(2.dp))
-                    }
-                }
-                Column {
-                    Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    c.author?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                    Text("${c.chapterCount} chapters · ${c.unreadCount} unread", style = MaterialTheme.typography.bodySmall)
-                    StatusRow(c.status, c.startYear, Modifier.padding(top = 2.dp))
-                }
-            }
-            HorizontalDivider()
         }
     }
 }

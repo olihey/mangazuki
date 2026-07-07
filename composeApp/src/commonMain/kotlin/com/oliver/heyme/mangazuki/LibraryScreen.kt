@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.oliver.heyme.mangazuki.core.data.LibraryCard
 import kotlinx.coroutines.launch
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun LibraryScreen(
@@ -122,15 +124,15 @@ fun LibraryScreen(
 private fun AddSourceChooserDialog(onDismiss: () -> Unit, onPickLocalFolder: () -> Unit, onPickSmbShare: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add library source") },
+        title = { Text(stringResource(Res.string.add_source_dialog_title)) },
         text = {
             Column {
-                TextButton(onClick = onPickLocalFolder, modifier = Modifier.fillMaxWidth()) { Text("Local folder") }
-                TextButton(onClick = onPickSmbShare, modifier = Modifier.fillMaxWidth()) { Text("SMB share") }
+                TextButton(onClick = onPickLocalFolder, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.add_source_local_folder)) }
+                TextButton(onClick = onPickSmbShare, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.add_source_smb_share)) }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
         },
     )
 }
@@ -153,24 +155,24 @@ private fun SmbConnectDialog(viewModel: LibraryViewModel, onDismiss: () -> Unit)
 
     AlertDialog(
         onDismissRequest = { if (!connecting) onDismiss() },
-        title = { Text("Connect to SMB share") },
+        title = { Text(stringResource(Res.string.smb_dialog_title)) },
         text = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
-                    value = host, onValueChange = { host = it }, label = { Text("Host") },
+                    value = host, onValueChange = { host = it }, label = { Text(stringResource(Res.string.smb_field_host)) },
                     singleLine = true, enabled = !connecting, modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = share, onValueChange = { share = it }, label = { Text("Share") },
+                    value = share, onValueChange = { share = it }, label = { Text(stringResource(Res.string.smb_field_share)) },
                     singleLine = true, enabled = !connecting, modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = username, onValueChange = { username = it },
-                    label = { Text("Username (blank for anonymous)") },
+                    label = { Text(stringResource(Res.string.smb_field_username)) },
                     singleLine = true, enabled = !connecting, modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = password, onValueChange = { password = it }, label = { Text("Password") },
+                    value = password, onValueChange = { password = it }, label = { Text(stringResource(Res.string.smb_field_password)) },
                     singleLine = true, enabled = !connecting,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -178,7 +180,7 @@ private fun SmbConnectDialog(viewModel: LibraryViewModel, onDismiss: () -> Unit)
                 )
                 OutlinedTextField(
                     value = rootPath, onValueChange = { rootPath = it },
-                    label = { Text("Folder within share (optional)") },
+                    label = { Text(stringResource(Res.string.smb_field_root_path)) },
                     singleLine = true, enabled = !connecting, modifier = Modifier.fillMaxWidth(),
                 )
                 if (connecting) CircularProgressIndicator(Modifier.padding(top = 4.dp))
@@ -198,10 +200,10 @@ private fun SmbConnectDialog(viewModel: LibraryViewModel, onDismiss: () -> Unit)
                         if (failure == null) onDismiss() else error = failure
                     }
                 },
-            ) { Text("Connect") }
+            ) { Text(stringResource(Res.string.smb_action_connect)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !connecting) { Text("Cancel") }
+            TextButton(onClick = onDismiss, enabled = !connecting) { Text(stringResource(Res.string.action_cancel)) }
         },
     )
 }

@@ -37,44 +37,52 @@ import com.oliver.heyme.mangazuki.core.domain.ReadingMode
 import com.oliver.heyme.mangazuki.core.domain.formatDateTime
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
+@Composable
 fun ThemeMode.label(): String = when (this) {
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.DARK -> "Dark"
-    ThemeMode.SYSTEM -> "Follow system setting"
+    ThemeMode.LIGHT -> stringResource(Res.string.theme_light)
+    ThemeMode.DARK -> stringResource(Res.string.theme_dark)
+    ThemeMode.SYSTEM -> stringResource(Res.string.theme_system)
 }
 
+@Composable
 fun TitleLanguage.label(): String = when (this) {
-    TitleLanguage.FILE -> "From file/folder name"
-    TitleLanguage.ANILIST_ROMAJI -> "Romaji"
-    TitleLanguage.ANILIST_ENGLISH -> "English"
-    TitleLanguage.ANILIST_NATIVE -> "Native"
+    TitleLanguage.FILE -> stringResource(Res.string.title_language_file)
+    TitleLanguage.ANILIST_ROMAJI -> stringResource(Res.string.title_language_romaji)
+    TitleLanguage.ANILIST_ENGLISH -> stringResource(Res.string.title_language_english)
+    TitleLanguage.ANILIST_NATIVE -> stringResource(Res.string.title_language_native)
 }
 
+@Composable
 fun StartScreen.label(): String = when (this) {
-    StartScreen.LIBRARY -> "Library"
-    StartScreen.YOUR_PAGE -> "Your Page"
+    StartScreen.LIBRARY -> stringResource(Res.string.start_screen_library)
+    StartScreen.YOUR_PAGE -> stringResource(Res.string.start_screen_your_page)
 }
 
+@Composable
 fun MetadataProviderChoice.label(): String = when (this) {
-    MetadataProviderChoice.ANILIST -> "AniList"
-    MetadataProviderChoice.KITSU -> "Kitsu"
+    MetadataProviderChoice.ANILIST -> stringResource(Res.string.metadata_provider_anilist)
+    MetadataProviderChoice.KITSU -> stringResource(Res.string.metadata_provider_kitsu)
 }
 
 /** Shared with the reader's chrome quick-switcher, so both use identical wording. */
+@Composable
 fun ReadingMode.label(): String = when (this) {
-    ReadingMode.PAGED_LTR -> "Paged, left to right"
-    ReadingMode.PAGED_RTL -> "Paged, right to left (manga default)"
-    ReadingMode.VERTICAL_PAGED -> "Vertical, one page at a time"
-    ReadingMode.VERTICAL_CONTINUOUS -> "Vertical, continuous scroll (webtoon)"
+    ReadingMode.PAGED_LTR -> stringResource(Res.string.reading_mode_paged_ltr)
+    ReadingMode.PAGED_RTL -> stringResource(Res.string.reading_mode_paged_rtl)
+    ReadingMode.VERTICAL_PAGED -> stringResource(Res.string.reading_mode_vertical_paged)
+    ReadingMode.VERTICAL_CONTINUOUS -> stringResource(Res.string.reading_mode_vertical_continuous)
 }
 
 /** Compact form for the chrome's quick-switcher button, where space is tight. */
+@Composable
 fun ReadingMode.shortLabel(): String = when (this) {
-    ReadingMode.PAGED_LTR -> "Paged →"
-    ReadingMode.PAGED_RTL -> "Paged ←"
-    ReadingMode.VERTICAL_PAGED -> "Vertical ↕"
-    ReadingMode.VERTICAL_CONTINUOUS -> "Webtoon ↕"
+    ReadingMode.PAGED_LTR -> stringResource(Res.string.reading_mode_short_paged_ltr)
+    ReadingMode.PAGED_RTL -> stringResource(Res.string.reading_mode_short_paged_rtl)
+    ReadingMode.VERTICAL_PAGED -> stringResource(Res.string.reading_mode_short_vertical_paged)
+    ReadingMode.VERTICAL_CONTINUOUS -> stringResource(Res.string.reading_mode_short_vertical_continuous)
 }
 
 /** Reader settings (PLAN.md §8.1): default reading mode, tap-zone layout, volume-key paging. */
@@ -116,7 +124,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(Res.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { BackIcon() }
                 },
@@ -125,7 +133,7 @@ fun SettingsScreen(
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxWidth().verticalScroll(rememberScrollState())) {
             Text(
-                "Theme",
+                stringResource(Res.string.settings_section_theme),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
             )
@@ -145,13 +153,12 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
             Text(
-                "Series title",
+                stringResource(Res.string.settings_section_series_title),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
             )
             Text(
-                "Which title to show for a matched series - falls back to the file/folder name " +
-                    "if the matched provider doesn't have that language for it.",
+                stringResource(Res.string.settings_section_series_title_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -172,13 +179,12 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
             Text(
-                "Start screen",
+                stringResource(Res.string.settings_section_start_screen),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
             )
             Text(
-                "Which Library tab to open on -- switching manually still sticks for the rest " +
-                    "of the session.",
+                stringResource(Res.string.settings_section_start_screen_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -199,13 +205,12 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
             Text(
-                "Metadata provider",
+                stringResource(Res.string.settings_section_metadata_provider),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
             )
             Text(
-                "Used for background matching of new series. Fix Metadata (on a series screen) " +
-                    "can always search a different provider just for that one lookup.",
+                stringResource(Res.string.settings_section_metadata_provider_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -226,13 +231,12 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
             Text(
-                "Default reading mode",
+                stringResource(Res.string.settings_section_reading_mode),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
             )
             Text(
-                "Used for any series you haven't switched individually — the reader's chrome " +
-                    "has a quick-switcher that remembers your choice per series.",
+                stringResource(Res.string.settings_section_reading_mode_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -259,8 +263,8 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
             SettingSwitchRow(
-                title = "Swap tap zones",
-                subtitle = "Flip which side of the screen advances vs goes back",
+                title = stringResource(Res.string.settings_swap_tap_zones_title),
+                subtitle = stringResource(Res.string.settings_swap_tap_zones_subtitle),
                 checked = invertTapZones,
                 onCheckedChange = {
                     invertTapZones = it
@@ -268,8 +272,8 @@ fun SettingsScreen(
                 },
             )
             SettingSwitchRow(
-                title = "Volume keys turn pages",
-                subtitle = "Use the hardware volume buttons while reading",
+                title = stringResource(Res.string.settings_volume_keys_title),
+                subtitle = stringResource(Res.string.settings_volume_keys_subtitle),
                 checked = volumeKeyPaging,
                 onCheckedChange = {
                     volumeKeyPaging = it
@@ -280,13 +284,12 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
             Text(
-                "Cloud sync",
+                stringResource(Res.string.settings_section_cloud_sync),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
             )
             Text(
-                "Reading progress and read/unread state follow you across devices via a hidden " +
-                    "folder in your own Google Drive — nothing else in your Drive is touched.",
+                stringResource(Res.string.settings_section_cloud_sync_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -294,7 +297,7 @@ fun SettingsScreen(
             when (val state = sync) {
                 is SyncState.SignedOut -> {
                     TextButton(onClick = onSignIn, modifier = Modifier.padding(horizontal = 8.dp)) {
-                        Text("Sign in with Google")
+                        Text(stringResource(Res.string.settings_sign_in_google))
                     }
                 }
                 is SyncState.SigningIn -> {
@@ -304,31 +307,32 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         CircularProgressIndicator(Modifier.size(20.dp))
-                        Text("Signing in…", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(Res.string.settings_signing_in), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 is SyncState.SignedIn -> {
+                    val notSyncedYet = stringResource(Res.string.settings_sync_not_synced_yet)
                     SettingSwitchRow(
-                        title = "Sync reading progress",
-                        subtitle = "Pauses syncing without signing out",
+                        title = stringResource(Res.string.settings_sync_progress_title),
+                        subtitle = stringResource(Res.string.settings_sync_progress_subtitle),
                         checked = syncEnabled,
                         onCheckedChange = appPreferences::setSyncEnabled,
-                        byline = lastSyncedAt?.let { "Last synced ${formatDateTime(it)}" } ?: "Not synced yet",
+                        byline = lastSyncedAt?.let { stringResource(Res.string.settings_sync_last_synced, formatDateTime(it)) } ?: notSyncedYet,
                     )
                     SettingSwitchRow(
-                        title = "Sync fixed metadata",
-                        subtitle = "Shares Fix Metadata matches across your devices to help reading progress line up correctly",
+                        title = stringResource(Res.string.settings_sync_metadata_title),
+                        subtitle = stringResource(Res.string.settings_sync_metadata_subtitle),
                         checked = metadataAliasSyncEnabled,
                         onCheckedChange = appPreferences::setMetadataAliasSyncEnabled,
-                        byline = lastMetadataAliasSyncedAt?.let { "Last synced ${formatDateTime(it)}" } ?: "Not synced yet",
+                        byline = lastMetadataAliasSyncedAt?.let { stringResource(Res.string.settings_sync_last_synced, formatDateTime(it)) } ?: notSyncedYet,
                     )
                     SettingSwitchRow(
-                        title = "Sync in background",
-                        subtitle = "Off: only syncs while the app is open — no scheduled battery/network use",
+                        title = stringResource(Res.string.settings_sync_background_title),
+                        subtitle = stringResource(Res.string.settings_sync_background_subtitle),
                         checked = backgroundSyncEnabled,
                         onCheckedChange = onBackgroundSyncEnabledChanged,
                     )
-                    TextButton(onClick = onSignOut, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Sign out") }
+                    TextButton(onClick = onSignOut, modifier = Modifier.padding(horizontal = 8.dp)) { Text(stringResource(Res.string.settings_sign_out)) }
                 }
                 is SyncState.Error -> {
                     Text(
@@ -338,7 +342,7 @@ fun SettingsScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                     TextButton(onClick = onSignIn, modifier = Modifier.padding(horizontal = 8.dp)) {
-                        Text("Sign in with Google")
+                        Text(stringResource(Res.string.settings_sign_in_google))
                     }
                 }
             }
@@ -347,12 +351,12 @@ fun SettingsScreen(
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
                 Text(
-                    "Debug",
+                    stringResource(Res.string.settings_section_debug),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
                 )
                 Text(
-                    "Inspect or clear the raw files this device syncs through Google Drive.",
+                    stringResource(Res.string.settings_section_debug_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -365,7 +369,7 @@ fun SettingsScreen(
                         }
                     },
                     modifier = Modifier.padding(horizontal = 8.dp),
-                ) { Text("View progress.json") }
+                ) { Text(stringResource(Res.string.settings_debug_view_progress)) }
                 TextButton(
                     onClick = {
                         viewJsonDialog = ViewJsonDialogState.Loading(DebugFile.METADATA_ALIASES)
@@ -374,30 +378,29 @@ fun SettingsScreen(
                         }
                     },
                     modifier = Modifier.padding(horizontal = 8.dp),
-                ) { Text("View metadata_aliases.json") }
+                ) { Text(stringResource(Res.string.settings_debug_view_metadata_aliases)) }
                 TextButton(
                     onClick = { clearTarget = DebugFile.PROGRESS },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.padding(horizontal = 8.dp),
-                ) { Text("Clear progress.json") }
+                ) { Text(stringResource(Res.string.settings_debug_clear_progress)) }
                 TextButton(
                     onClick = { clearTarget = DebugFile.METADATA_ALIASES },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.padding(horizontal = 8.dp),
-                ) { Text("Clear metadata_aliases.json") }
+                ) { Text(stringResource(Res.string.settings_debug_clear_metadata_aliases)) }
             }
 
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
             Text(
-                "Reset library",
+                stringResource(Res.string.settings_reset_library_title),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
             )
             Text(
-                "Forgets the configured source and wipes every scanned series, chapter, and " +
-                    "reading-progress row, plus all cached cover/banner files. Can't be undone.",
+                stringResource(Res.string.settings_reset_library_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -406,20 +409,16 @@ fun SettingsScreen(
                 onClick = { showResetConfirm = true },
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.padding(horizontal = 8.dp),
-            ) { Text("Reset library") }
+            ) { Text(stringResource(Res.string.settings_reset_library_title)) }
         }
     }
 
     if (showResetConfirm) {
         AlertDialog(
             onDismissRequest = { showResetConfirm = false },
-            title = { Text("Reset library?") },
+            title = { Text(stringResource(Res.string.settings_reset_confirm_title)) },
             text = {
-                Text(
-                    "This deletes your entire scanned library and all cached cover/banner " +
-                        "files, and forgets the configured source (including any saved SMB " +
-                        "password). Your manga files themselves are untouched. This can't be undone.",
-                )
+                Text(stringResource(Res.string.settings_reset_confirm_body))
             },
             confirmButton = {
                 TextButton(
@@ -429,10 +428,10 @@ fun SettingsScreen(
                         onBack()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text("Reset") }
+                ) { Text(stringResource(Res.string.settings_reset_confirm_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { showResetConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showResetConfirm = false }) { Text(stringResource(Res.string.action_cancel)) }
             },
         )
     }
@@ -446,13 +445,13 @@ fun SettingsScreen(
                     is ViewJsonDialogState.Loading -> {
                         Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             CircularProgressIndicator(Modifier.size(20.dp))
-                            Text("Fetching from Drive…")
+                            Text(stringResource(Res.string.settings_debug_fetching))
                         }
                     }
                     is ViewJsonDialogState.Loaded -> {
                         Column(Modifier.verticalScroll(rememberScrollState())) {
                             Text(
-                                state.json ?: "(not signed in, or no file yet)",
+                                state.json ?: stringResource(Res.string.settings_debug_not_signed_in),
                                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -461,7 +460,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { viewJsonDialog = null }) { Text("Close") }
+                TextButton(onClick = { viewJsonDialog = null }) { Text(stringResource(Res.string.action_close)) }
             },
         )
     }
@@ -469,13 +468,9 @@ fun SettingsScreen(
     clearTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { clearTarget = null },
-            title = { Text("Clear ${target.fileName}?") },
+            title = { Text(stringResource(Res.string.settings_debug_clear_confirm_title, target.fileName)) },
             text = {
-                Text(
-                    "Overwrites the Drive copy with an empty file. This device's own local data " +
-                        "isn't touched and will re-upload on the next sync, but other devices lose " +
-                        "their contribution to this file until they next sync too.",
-                )
+                Text(stringResource(Res.string.settings_debug_clear_confirm_body))
             },
             confirmButton = {
                 TextButton(
@@ -489,10 +484,10 @@ fun SettingsScreen(
                         }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text("Clear") }
+                ) { Text(stringResource(Res.string.settings_debug_clear_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { clearTarget = null }) { Text("Cancel") }
+                TextButton(onClick = { clearTarget = null }) { Text(stringResource(Res.string.action_cancel)) }
             },
         )
     }

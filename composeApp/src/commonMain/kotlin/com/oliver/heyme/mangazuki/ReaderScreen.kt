@@ -94,6 +94,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 private enum class TapZone { BACKWARD, FORWARD, MENU }
 
@@ -615,7 +617,7 @@ private fun BoxScope.ReaderChrome(
                 fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 1.sp,
             )
             Text(
-                "Page ${currentPage + 1} of $pageCount".uppercase(), color = MangaColors.Accent,
+                stringResource(Res.string.reader_page_of, currentPage + 1, pageCount).uppercase(), color = MangaColors.Accent,
                 fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 1.sp,
             )
         }
@@ -682,7 +684,7 @@ private enum class HintArrow { LEFT, RIGHT, UP, DOWN }
 @Composable
 private fun TapZoneHint(forward: Boolean, isMenu: Boolean, arrow: HintArrow?, archivo: FontFamily) {
     val tint = if (forward) MangaColors.Accent else Color.White.copy(alpha = if (isMenu) 0.5f else 0.62f)
-    val label = if (isMenu) "Toggle Menu" else if (forward) "Next Page" else "Previous"
+    val label = if (isMenu) stringResource(Res.string.reader_tap_zone_toggle_menu) else if (forward) stringResource(Res.string.reader_tap_zone_next_page) else stringResource(Res.string.reader_tap_zone_previous)
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
             Modifier.size(58.dp).dashedBorder(tint.copy(alpha = if (forward) 0.7f else 0.4f), cornerRadius = if (isMenu) 16.dp else null),
@@ -727,7 +729,7 @@ private fun ScrollToReadHint(archivo: FontFamily, modifier: Modifier = Modifier)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ChevronGlyph(HintArrow.DOWN, Color.White.copy(alpha = 0.55f))
         Text(
-            "Scroll to read".uppercase(), color = Color.White.copy(alpha = 0.55f), fontFamily = archivo,
+            stringResource(Res.string.reader_scroll_to_read).uppercase(), color = Color.White.copy(alpha = 0.55f), fontFamily = archivo,
             fontWeight = FontWeight.Bold, fontSize = 9.sp, letterSpacing = 2.sp,
         )
     }
@@ -747,22 +749,24 @@ private fun Modifier.dashedBorder(color: Color, cornerRadius: Dp?, strokeWidth: 
 
 /** "Tap right-side zones to advance" etc, under the scrubber -- phrased around the *actual*
  * forward zone rather than a fixed side, same reasoning as [HorizontalTapZoneHints]. */
+@Composable
 private fun directionHint(readingMode: ReadingMode, readingDirectionRtl: Boolean): String = when (readingMode) {
-    ReadingMode.VERTICAL_CONTINUOUS -> "Swipe or scroll vertically to advance"
-    ReadingMode.VERTICAL_PAGED -> "Swipe vertically to advance"
-    else -> if (readingDirectionRtl) "Tap side zones to advance · manga order" else "Tap side zones to advance"
+    ReadingMode.VERTICAL_CONTINUOUS -> stringResource(Res.string.reader_direction_hint_vertical_continuous)
+    ReadingMode.VERTICAL_PAGED -> stringResource(Res.string.reader_direction_hint_vertical_paged)
+    else -> if (readingDirectionRtl) stringResource(Res.string.reader_direction_hint_horizontal_rtl) else stringResource(Res.string.reader_direction_hint_horizontal)
 }
 
 /** "CH. 13 · A Name in the Sand", falling back to "VOL. N" when there's no parsed chapter number
  * (PLAN.md §5, §17) and to the plain filename when there's neither -- same cascade as
  * [MangaDetailScreen]'s `chapterOrdinal`, just inlined here since that helper is file-private. */
+@Composable
 private fun chapterHeaderLabel(chapter: ChapterCard): String {
     val prefix = when {
-        chapter.number != null -> "CH. ${formatReaderChapterNumber(chapter.number)}"
-        chapter.volume != null -> "VOL. ${formatReaderChapterNumber(chapter.volume)}"
+        chapter.number != null -> stringResource(Res.string.chapter_prefix_ch) to formatReaderChapterNumber(chapter.number)
+        chapter.volume != null -> stringResource(Res.string.chapter_prefix_vol) to formatReaderChapterNumber(chapter.volume)
         else -> null
     }
-    return if (prefix != null) "$prefix · ${chapter.displayName}" else chapter.displayName
+    return if (prefix != null) stringResource(Res.string.chapter_ordinal_with_name, prefix.first, prefix.second, chapter.displayName) else chapter.displayName
 }
 
 private fun formatReaderChapterNumber(number: Double?): String {
@@ -793,7 +797,7 @@ private fun NextChapterPreview(chapter: ChapterCard) {
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Text("Next chapter", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(Res.string.reader_next_chapter_label), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
             Text(
                 chapter.displayName,
                 color = Color.White,
@@ -1006,7 +1010,7 @@ private fun ReaderPage(
     ) { scale, offset ->
         AsyncImage(
             model = MangaPage(pageModel, index, chapterSize),
-            contentDescription = "Page ${index + 1}",
+            contentDescription = stringResource(Res.string.content_desc_page_number, index + 1),
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize().graphicsLayer(
                 scaleX = scale,
@@ -1028,7 +1032,7 @@ private fun WebtoonPage(pageModel: String, chapterSize: Long?, index: Int, aspec
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         AsyncImage(
             model = MangaPage(pageModel, index, chapterSize),
-            contentDescription = "Page ${index + 1}",
+            contentDescription = stringResource(Res.string.content_desc_page_number, index + 1),
             contentScale = ContentScale.FillWidth,
             modifier = Modifier.fillMaxWidth(widthFraction).aspectRatio(aspectRatio),
         )
@@ -1038,7 +1042,11 @@ private fun WebtoonPage(pageModel: String, chapterSize: Long?, index: Int, aspec
 @Composable
 private fun GestureHelpOverlay(isRtl: Boolean, invertTapZones: Boolean, isVertical: Boolean, onDismiss: () -> Unit) {
     val firstThirdIsForward = (if (isVertical) false else isRtl) xor invertTapZones
-    val (startLabel, endLabel) = if (isVertical) "top" to "bottom" else "left" to "right"
+    val (startLabel, endLabel) = if (isVertical) {
+        stringResource(Res.string.reader_help_side_top) to stringResource(Res.string.reader_help_side_bottom)
+    } else {
+        stringResource(Res.string.reader_help_side_left) to stringResource(Res.string.reader_help_side_right)
+    }
     val forwardSide = if (firstThirdIsForward) startLabel else endLabel
     val backSide = if (firstThirdIsForward) endLabel else startLabel
     Box(
@@ -1049,8 +1057,7 @@ private fun GestureHelpOverlay(isRtl: Boolean, invertTapZones: Boolean, isVertic
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            "Tap $forwardSide to go forward, $backSide to go back, center for menu.\n" +
-                "Double-tap or pinch to zoom. Volume keys turn pages.\n\nTap anywhere to start reading.",
+            stringResource(Res.string.reader_help_text, forwardSide, backSide),
             color = Color.White,
             modifier = Modifier.padding(32.dp),
             textAlign = TextAlign.Center,

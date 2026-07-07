@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 /** Release year + AniList status (§9) as a colored dot + label, e.g. "2021 · ● Releasing" —
  * shared by the series header (sits under the cover image) and the library's detailed layout
@@ -39,12 +41,13 @@ fun StatusRow(status: String?, startYear: Int?, modifier: Modifier = Modifier) {
 
 /** AniList `MediaStatus` -> (display label, color). Null for an unmatched series or a status
  * value AniList hasn't documented (future-proofing rather than crashing on an unknown enum). */
+@Composable
 internal fun statusPresentation(status: String?): Pair<String, Color>? = when (status) {
-    "FINISHED" -> "Finished" to Color(0xFF4CAF50)
-    "RELEASING" -> "Releasing" to Color(0xFF2196F3)
-    "NOT_YET_RELEASED" -> "Not yet released" to Color(0xFFFF9800)
-    "CANCELLED" -> "Cancelled" to Color(0xFFF44336)
-    "HIATUS" -> "Hiatus" to Color(0xFFFFC107)
+    "FINISHED" -> stringResource(Res.string.status_finished) to Color(0xFF4CAF50)
+    "RELEASING" -> stringResource(Res.string.status_releasing) to Color(0xFF2196F3)
+    "NOT_YET_RELEASED" -> stringResource(Res.string.status_not_yet_released) to Color(0xFFFF9800)
+    "CANCELLED" -> stringResource(Res.string.status_cancelled) to Color(0xFFF44336)
+    "HIATUS" -> stringResource(Res.string.status_hiatus) to Color(0xFFFFC107)
     else -> null
 }
 
@@ -52,10 +55,11 @@ internal fun statusPresentation(status: String?): Pair<String, Color>? = when (s
  * [StatusRow]. AniList's `MediaFormat` enum doesn't distinguish manhwa/manhua from manga
  * (`KitsuMetadataProvider.normalizeFormat` folds both into `MANGA`, PLAN.md §9.3), so only these
  * three values ever actually occur; null for an unmatched series or an unrecognized value. */
+@Composable
 internal fun formatPresentation(format: String?): Pair<String, Color>? = when (format) {
-    "MANGA" -> "Manga" to Color(0xFF64B5F6)
-    "NOVEL" -> "Novel" to Color(0xFFBA68C8)
-    "ONE_SHOT" -> "One-shot" to Color(0xFFFFB74D)
+    "MANGA" -> stringResource(Res.string.format_manga) to Color(0xFF64B5F6)
+    "NOVEL" -> stringResource(Res.string.format_novel) to Color(0xFFBA68C8)
+    "ONE_SHOT" -> stringResource(Res.string.format_one_shot) to Color(0xFFFFB74D)
     else -> null
 }
 
@@ -78,9 +82,10 @@ fun FormatPill(format: String?, modifier: Modifier = Modifier) {
 
 /** [Series.metadataProvider] -> its display attribution ("Data provided by AniList") — null
  * for an unmatched series (never stamped) or an unrecognized value (future-proofing). */
+@Composable
 private fun providerAttribution(providerId: String?): String? = when (providerId) {
-    "ANILIST" -> "Data provided by AniList"
-    "KITSU" -> "Data provided by Kitsu"
+    "ANILIST" -> stringResource(Res.string.metadata_attribution_anilist)
+    "KITSU" -> stringResource(Res.string.metadata_attribution_kitsu)
     else -> null
 }
 

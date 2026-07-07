@@ -39,6 +39,8 @@ import com.oliver.heyme.mangazuki.core.metadata.RemoteWork
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.foundation.background
 import coil3.compose.AsyncImage
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SeriesScreen(
@@ -99,7 +101,7 @@ private fun FixMetadataDialog(viewModel: SeriesViewModel, titleLanguage: TitleLa
 
     AlertDialog(
         onDismissRequest = viewModel::dismissMetadataSearch,
-        title = { Text("Fix metadata") },
+        title = { Text(stringResource(Res.string.fix_metadata_dialog_title)) },
         text = {
             Column(Modifier.fillMaxWidth()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -118,7 +120,7 @@ private fun FixMetadataDialog(viewModel: SeriesViewModel, titleLanguage: TitleLa
                         onValueChange = viewModel::updateMetadataQuery,
                         modifier = Modifier.weight(1f),
                         singleLine = true,
-                        label = { Text("Title") },
+                        label = { Text(stringResource(Res.string.fix_metadata_field_title)) },
                         trailingIcon = {
                             if (query.isNotEmpty()) {
                                 IconButton(onClick = viewModel::clearMetadataQuery) { Text("✕") }
@@ -128,14 +130,14 @@ private fun FixMetadataDialog(viewModel: SeriesViewModel, titleLanguage: TitleLa
                         keyboardActions = KeyboardActions(onSearch = { viewModel.searchMetadata() }),
                     )
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = viewModel::searchMetadata) { Text("Search") }
+                    TextButton(onClick = viewModel::searchMetadata) { Text(stringResource(Res.string.fix_metadata_action_search)) }
                 }
                 Spacer(Modifier.height(8.dp))
                 Box(Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 320.dp)) {
                     when {
                         loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                         results.isEmpty() -> Text(
-                            "No matches",
+                            stringResource(Res.string.fix_metadata_no_matches),
                             Modifier.align(Alignment.Center),
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -149,7 +151,7 @@ private fun FixMetadataDialog(viewModel: SeriesViewModel, titleLanguage: TitleLa
             }
         },
         confirmButton = {
-            TextButton(onClick = viewModel::dismissMetadataSearch) { Text("Cancel") }
+            TextButton(onClick = viewModel::dismissMetadataSearch) { Text(stringResource(Res.string.action_cancel)) }
         },
     )
 }

@@ -9,6 +9,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * A hand-drawn back-arrow glyph (the standard Material "arrow_back" outline), used instead of
@@ -46,5 +48,5 @@ private val BackArrowIcon: ImageVector by lazy {
  * defaults to the current content color so it matches the surrounding text/icons automatically. */
 @Composable
 fun BackIcon(modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) {
-    Icon(BackArrowIcon, contentDescription = "Back", modifier = modifier, tint = tint)
+    Icon(BackArrowIcon, contentDescription = stringResource(Res.string.content_desc_back), modifier = modifier, tint = tint)
 }

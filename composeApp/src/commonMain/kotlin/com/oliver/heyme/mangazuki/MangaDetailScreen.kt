@@ -51,6 +51,9 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.oliver.heyme.mangazuki.core.data.ChapterCard
 import com.oliver.heyme.mangazuki.core.domain.Series
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * The "Manga Detail Tablet" design (Claude Design, imported 2026-07-06) applied to the Series
@@ -135,8 +138,8 @@ private fun DetailTopBar(onBack: () -> Unit, onFixMetadata: () -> Unit, archivo:
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to library", tint = Color.White, modifier = Modifier.size(17.dp))
-            Text("Library", color = Color.White, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.content_desc_back_to_library), tint = Color.White, modifier = Modifier.size(17.dp))
+            Text(stringResource(Res.string.detail_library_button), color = Color.White, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
         ShelfIconButton(onClick = onFixMetadata, icon = Icons.Default.Build, background = Color.Black.copy(alpha = 0.4f), tint = Color.White)
     }
@@ -156,11 +159,11 @@ private fun DetailHero(
     val percent = if (chapters.isNotEmpty()) readCount * 100 / chapters.size else 0
     val cta = when {
         chapters.isEmpty() -> null
-        nextUnread == null -> "Read again"
-        readCount == 0 -> "Start reading"
+        nextUnread == null -> stringResource(Res.string.detail_cta_read_again)
+        readCount == 0 -> stringResource(Res.string.detail_cta_start_reading)
         else -> {
             val (prefix, value) = chapterOrdinal(nextUnread, chapters.indexOf(nextUnread))
-            "Continue · $prefix $value"
+            stringResource(Res.string.detail_cta_continue, prefix, value)
         }
     }
     val ctaTarget = nextUnread?.id ?: chapters.firstOrNull()?.id
@@ -204,11 +207,11 @@ private fun DetailHero(
                 if (chapters.isNotEmpty()) {
                     Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(
-                            "PROGRESS", color = MangaColors.TextMuted2, fontFamily = archivo, fontWeight = FontWeight.SemiBold,
+                            stringResource(Res.string.detail_progress_label), color = MangaColors.TextMuted2, fontFamily = archivo, fontWeight = FontWeight.SemiBold,
                             fontSize = 9.sp, letterSpacing = 1.sp,
                         )
                         Text(
-                            "$readCount / ${chapters.size}", color = MangaColors.Text, fontFamily = archivo, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp,
+                            stringResource(Res.string.detail_progress_fraction, readCount, chapters.size), color = MangaColors.Text, fontFamily = archivo, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp,
                         )
                     }
                     Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(5.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF221F1C))) {
@@ -323,26 +326,26 @@ private fun ChaptersHeader(
     ) {
         if (selectionMode) {
             Text(
-                "$selectedCount " + if (selectedCount == 1) "CHAPTER SELECTED" else "CHAPTERS SELECTED",
+                pluralStringResource(Res.plurals.selection_chapters_selected, selectedCount, selectedCount),
                 color = MangaColors.Text, fontFamily = anton, fontSize = 24.sp,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                ShelfPillButton(onClick = onSelectAll) { Text("All", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
-                ShelfPillButton(onClick = onSelectNone) { Text("None", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
-                ShelfPillButton(onClick = onMarkRead) { Text("Read", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
-                ShelfPillButton(onClick = onMarkUnread) { Text("Unread", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onSelectAll) { Text(stringResource(Res.string.selection_action_all), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onSelectNone) { Text(stringResource(Res.string.selection_action_none), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onMarkRead) { Text(stringResource(Res.string.selection_action_read), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onMarkUnread) { Text(stringResource(Res.string.selection_action_unread), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
                 Row(
                     Modifier.clip(RoundedCornerShape(12.dp)).background(MangaColors.Accent)
                         .clickable(onClick = onExitSelectionMode).padding(horizontal = 16.dp, vertical = 11.dp),
                 ) {
-                    Text("Done", color = Color.White, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(stringResource(Res.string.selection_action_done), color = Color.White, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         } else {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("CHAPTERS", color = MangaColors.Text, fontFamily = anton, fontSize = 24.sp)
+                Text(stringResource(Res.string.chapters_header_title), color = MangaColors.Text, fontFamily = anton, fontSize = 24.sp)
                 Text(
-                    "$count TOTAL",
+                    stringResource(Res.string.chapters_header_total, count),
                     color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.5.sp,
                 )
             }
@@ -387,7 +390,7 @@ private fun ChapterTile(
             )
             if (isNext) {
                 Text(
-                    "UP NEXT", color = MangaColors.Bg, fontFamily = archivo, fontWeight = FontWeight.ExtraBold, fontSize = 8.sp, letterSpacing = 1.2.sp,
+                    stringResource(Res.string.chapter_tile_up_next), color = MangaColors.Bg, fontFamily = archivo, fontWeight = FontWeight.ExtraBold, fontSize = 8.sp, letterSpacing = 1.2.sp,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
                         .background(MangaColors.Accent, RoundedCornerShape(6.dp)).padding(horizontal = 7.dp, vertical = 3.dp),
                 )
@@ -400,7 +403,7 @@ private fun ChapterTile(
                         .background(Color.Black.copy(alpha = 0.45f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Default.Check, contentDescription = "Read", tint = Color(0xFF7DE0A0), modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.Check, contentDescription = stringResource(Res.string.content_desc_chapter_read), tint = Color(0xFF7DE0A0), modifier = Modifier.size(13.dp))
                 }
             }
         }
@@ -418,9 +421,10 @@ private fun ChapterTile(
  * its volume number, and finally to its plain position in the list -- some series are organized
  * by volume alone with no per-file chapter number to parse (e.g. "A Silent Voice v01"), and the
  * big callout number on a tile needs to show *something* meaningful rather than a bare "?". */
+@Composable
 private fun chapterOrdinal(chapter: ChapterCard, indexInList: Int): Pair<String, String> = when {
-    chapter.number != null -> "CH." to formatChapterNumber(chapter.number)
-    chapter.volume != null -> "VOL." to formatChapterNumber(chapter.volume)
+    chapter.number != null -> stringResource(Res.string.chapter_prefix_ch) to formatChapterNumber(chapter.number)
+    chapter.volume != null -> stringResource(Res.string.chapter_prefix_vol) to formatChapterNumber(chapter.volume)
     else -> "#" to (indexInList + 1).toString()
 }
 

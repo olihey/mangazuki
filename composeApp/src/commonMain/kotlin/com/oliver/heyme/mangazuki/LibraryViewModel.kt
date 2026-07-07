@@ -36,16 +36,12 @@ private const val FRESH_CHAPTERS_LIMIT = 12L
  * (PLAN.md §9.2) — "processed" includes matched, checked-no-match, and failed alike. */
 data class EnrichProgress(val done: Int, val total: Int)
 
-enum class SortMode(val label: String) {
-    NAME("Name"), RECENTLY_ADDED("Recently added"), RECENTLY_READ("Recently read"), RELEASE_START("Release start")
-}
+enum class SortMode { NAME, RECENTLY_ADDED, RECENTLY_READ, RELEASE_START }
 
 /** Library filter (PLAN.md §7.1): "Hide matched" is the AniList-match counterpart of "Hide
  * read" — hides series that already have an `external_id`, for focusing on what Fix Metadata
  * still needs to look at (PLAN.md §9.1). */
-enum class LibraryFilter(val label: String) {
-    SHOW_ALL("Show all"), HIDE_READ("Hide read"), HIDE_MATCHED("Hide matched")
-}
+enum class LibraryFilter { SHOW_ALL, HIDE_READ, HIDE_MATCHED }
 
 class LibraryViewModel(
     private val repository: LibraryRepository,

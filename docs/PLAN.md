@@ -1858,3 +1858,52 @@ no source changes. If adding PDF needs the reader or DB to change, a seam leaked
   must be re-registered under the new package name.
 
 No open decisions remain. The plan is build-ready for Phase 0 on Android.
+
+## 19. Internationalization (i18n)
+
+**String extraction, English-only (2026-07-07).** Every hardcoded, user-facing UI string across
+`composeApp`'s commonMain screens (Library/shelf grid, Series/chapter detail, Your Page, Reader
+chrome, Settings, dialogs) has been moved into Compose Multiplatform string resources
+(`composeApp/src/commonMain/composeResources/values/strings.xml`), accessed via
+`stringResource(Res.string.key)` / `pluralStringResource(Res.plurals.key, n, n)` — no translated
+locales yet, this pass only lays the infrastructure. `org.jetbrains.compose.resources` was already
+a dependency; the `composeResources/values/` directory and its generated
+`manga_reader.composeapp.generated.resources.Res` accessor are new.
+
+Notable fallout from doing this as a real pass rather than a token gesture:
+- Enum `label()`/`shortLabel()` extension functions (`ThemeMode`, `TitleLanguage`, `StartScreen`,
+  `MetadataProviderChoice`, `ReadingMode` in `SettingsScreen.kt`; `SortMode`, `LibraryFilter` in
+  `MangaShelfGrid.kt`) became `@Composable` functions, since `stringResource` can only be called
+  from composition — `SortMode`/`LibraryFilter` specifically dropped their stored `val label: String`
+  constructor property in favor of this pattern, matching how the other enums already worked.
+  Free functions used only for display text (`statusPresentation`/`formatPresentation` in
+  `StatusRow.kt`, `chapterOrdinal`/`directionHint`/`chapterHeaderLabel` in `ReaderScreen.kt`,
+  `chapterOrdinalFor` in `YourPageScreen.kt`) got the same treatment.
+- Count-based strings ("N title(s)", "N chapter(s) selected") use real `<plurals>` resources
+  (`one`/`other` quantities) rather than a hand-rolled `if (n == 1) ... else ...`, so this is
+  ready for languages with different plural rules, not just English's two.
+- **Compose Multiplatform's `strings.xml` parser does not apply Android aapt's classic
+  backslash-escaping for apostrophes** — `doesn\'t` in the XML source renders literally as
+  `doesn\'t` (with the backslash) at runtime, not `doesn't`. A plain, unescaped `'` is correct
+  here; this bit during the first pass on several longer description strings and was caught by
+  screenshotting Settings on-device, not by the compiler (wrong output, not a build error).
+- Left un-extracted, deliberately: the "MANGAZUKI" wordmark (brand name, not UI copy), single
+  decorative glyphs (`●`, `?`, `✕`, `#` used as bare fallback symbols), and technical identifiers
+  (`progress.json` / `metadata_aliases.json` filenames) — none of these are language-dependent
+  text.
+- Chapter-ordinal prefixes ("CH."/"VOL.") and the "%1$s %2$s · %3$s" ordinal-plus-name template
+  were deduplicated into shared resource keys (`chapter_prefix_ch`/`_vol`,
+  `chapter_ordinal_with_name`) once it became clear `MangaDetailScreen.kt`, `YourPageScreen.kt`,
+  and `ReaderScreen.kt` each had their own copy of the same English text.
+
+**Explicitly out of scope, discussed and declined:** per-language *series descriptions*
+(matching the existing Romaji/English/Native *title* setting) — investigated and rejected
+(2026-07-07) because neither AniList nor Kitsu's real API exposes a translated description the
+way they do for titles (`title { romaji english native }` is a genuine multi-language field;
+`description` is a single string in whatever language the provider itself stored it, usually
+English prose), and "romaji" specifically isn't a language to translate body text into — it's a
+transliteration system for Japanese. Revisit only if a concrete approach (e.g. hide description
+outside English, or a real translation API) gets chosen.
+
+**Not done yet:** translated locales themselves (e.g. `values-de/strings.xml`) — this pass is
+extraction only, per explicit scope ("start with extracting strings + English resources only").

@@ -67,6 +67,9 @@ import coil3.compose.AsyncImage
 import com.oliver.heyme.mangazuki.core.data.ChapterCard
 import com.oliver.heyme.mangazuki.core.data.LibraryCard
 import com.oliver.heyme.mangazuki.core.data.RecentChapterCard
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /** The masthead's headline doubles as a two-way tab switcher -- local-only UI state, not
  * persisted or known to [LibraryViewModel], since [YourPageContent] derives everything it shows
@@ -78,6 +81,21 @@ import com.oliver.heyme.mangazuki.core.data.RecentChapterCard
 private enum class LibraryTab { LIBRARY, YOUR_PAGE }
 
 private val LibraryTabSaver = Saver<LibraryTab, String>(save = { it.name }, restore = { LibraryTab.valueOf(it) })
+
+@Composable
+private fun SortMode.label(): String = when (this) {
+    SortMode.NAME -> stringResource(Res.string.sort_name)
+    SortMode.RECENTLY_ADDED -> stringResource(Res.string.sort_recently_added)
+    SortMode.RECENTLY_READ -> stringResource(Res.string.sort_recently_read)
+    SortMode.RELEASE_START -> stringResource(Res.string.sort_release_start)
+}
+
+@Composable
+private fun LibraryFilter.label(): String = when (this) {
+    LibraryFilter.SHOW_ALL -> stringResource(Res.string.filter_show_all)
+    LibraryFilter.HIDE_READ -> stringResource(Res.string.filter_hide_read)
+    LibraryFilter.HIDE_MATCHED -> stringResource(Res.string.filter_hide_matched)
+}
 
 /**
  * The "Manga Library Tablet" design (Claude Design, imported 2026-07-06) applied to normal
@@ -146,13 +164,13 @@ fun MangaShelfGrid(
         } else {
             if (needsReGrant) ShelfReGrantBanner(onAddSource, archivo)
             when {
-                !canRescan && !needsReGrant -> ShelfEmptyState("No library source configured yet.", archivo) {
+                !canRescan && !needsReGrant -> ShelfEmptyState(stringResource(Res.string.shelf_empty_no_source), archivo) {
                     Button(onClick = onAddSource, colors = ButtonDefaults.buttonColors(containerColor = MangaColors.Accent)) {
-                        Text("+ Add source", fontFamily = archivo, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(stringResource(Res.string.shelf_add_source), fontFamily = archivo, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
                 cards.isEmpty() && progress == null && query.isBlank() && !needsReGrant ->
-                    ShelfEmptyState("No series found in this library yet.", archivo)
+                    ShelfEmptyState(stringResource(Res.string.shelf_empty_no_series), archivo)
                 else -> {
                     // Always rendered, even in selection mode -- hiding it used to shift every
                     // cover up by its height the instant a long-press entered selection mode.
@@ -204,34 +222,38 @@ private fun ShelfMasthead(
                 // nothing useful to show for both at once, and the selection is the thing the
                 // user is actively doing right now.
                 selectionMode -> ShelfProgressLabel(
-                    "Selected", "$selectedCount " + if (selectedCount == 1) "title" else "titles", archivo, anton,
+                    stringResource(Res.string.masthead_selected_label),
+                    pluralStringResource(Res.plurals.selection_title_count, selectedCount, selectedCount),
+                    archivo, anton,
                 )
                 progress != null -> ShelfProgressLabel(
-                    "Scanning",
+                    stringResource(Res.string.masthead_scanning_label),
                     // A big first series can take a while to fully list/process -- show
                     // directories checked in the meantime rather than sitting on "0 series, 0
                     // chapters" with no visible movement (PLAN.md §5).
-                    if (progress.seriesFound > 0) "${progress.seriesFound} series · ${progress.chaptersFound} chapters"
-                    else "${progress.directoriesScanned} folders checked",
+                    if (progress.seriesFound > 0) stringResource(Res.string.masthead_scan_progress, progress.seriesFound, progress.chaptersFound)
+                    else stringResource(Res.string.masthead_scan_folders_checked, progress.directoriesScanned),
                     archivo, anton,
                 )
                 enrichProgress != null -> ShelfProgressLabel(
-                    "Fetching metadata", "${enrichProgress.done} / ${enrichProgress.total}", archivo, anton,
+                    stringResource(Res.string.masthead_fetching_metadata_label),
+                    stringResource(Res.string.masthead_fetch_progress, enrichProgress.done, enrichProgress.total),
+                    archivo, anton,
                 )
                 else -> MastheadTitleBlock(activeTab, onTabChange, archivo, anton)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             if (selectionMode) {
-                ShelfPillButton(onClick = onSelectAll) { Text("All", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
-                ShelfPillButton(onClick = onSelectNone) { Text("None", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
-                ShelfPillButton(onClick = onMarkRead) { Text("Read", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
-                ShelfPillButton(onClick = onMarkUnread) { Text("Unread", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onSelectAll) { Text(stringResource(Res.string.selection_action_all), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onSelectNone) { Text(stringResource(Res.string.selection_action_none), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onMarkRead) { Text(stringResource(Res.string.selection_action_read), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                ShelfPillButton(onClick = onMarkUnread) { Text(stringResource(Res.string.selection_action_unread), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
                 Row(
                     Modifier.clip(RoundedCornerShape(12.dp)).background(MangaColors.Accent)
                         .clickable(onClick = onExitSelectionMode).padding(horizontal = 16.dp, vertical = 11.dp),
                 ) {
-                    Text("Done", color = Color.White, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(stringResource(Res.string.selection_action_done), color = Color.White, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             } else {
                 if (canRescan && progress == null) {
@@ -251,8 +273,8 @@ private fun MastheadTitleBlock(activeTab: LibraryTab, onTabChange: (LibraryTab) 
             fontSize = 10.sp, letterSpacing = 3.sp,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 4.dp)) {
-            MastheadTab("LIBRARY", active = activeTab == LibraryTab.LIBRARY, onClick = { onTabChange(LibraryTab.LIBRARY) }, anton)
-            MastheadTab("YOUR PAGE", active = activeTab == LibraryTab.YOUR_PAGE, onClick = { onTabChange(LibraryTab.YOUR_PAGE) }, anton)
+            MastheadTab(stringResource(Res.string.tab_library), active = activeTab == LibraryTab.LIBRARY, onClick = { onTabChange(LibraryTab.LIBRARY) }, anton)
+            MastheadTab(stringResource(Res.string.tab_your_page), active = activeTab == LibraryTab.YOUR_PAGE, onClick = { onTabChange(LibraryTab.YOUR_PAGE) }, anton)
         }
     }
 }
@@ -306,11 +328,11 @@ private fun ShelfReGrantBanner(onReconnect: () -> Unit, archivo: FontFamily) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Source access was lost. Re-grant to keep your library updated.",
+            stringResource(Res.string.regrant_banner_text),
             color = MangaColors.Text, fontFamily = archivo, fontSize = 13.sp, modifier = Modifier.weight(1f),
         )
         Button(onClick = onReconnect, colors = ButtonDefaults.buttonColors(containerColor = MangaColors.Accent)) {
-            Text("Re-grant", fontFamily = archivo, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(stringResource(Res.string.regrant_action), fontFamily = archivo, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
@@ -352,7 +374,7 @@ private fun ShelfToolbar(
             Icon(Icons.Default.Search, contentDescription = null, tint = MangaColors.TextMuted, modifier = Modifier.size(18.dp))
             Box(Modifier.weight(1f)) {
                 if (query.isEmpty()) {
-                    Text("Search titles, authors…", color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text(stringResource(Res.string.search_placeholder), color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
                 BasicTextField(
                     value = query,
@@ -365,7 +387,7 @@ private fun ShelfToolbar(
             }
             if (query.isNotEmpty()) {
                 Icon(
-                    Icons.Default.Close, contentDescription = "Clear search", tint = MangaColors.TextMuted,
+                    Icons.Default.Close, contentDescription = stringResource(Res.string.content_desc_clear_search), tint = MangaColors.TextMuted,
                     modifier = Modifier.size(16.dp).clickable { viewModel.query.value = "" },
                 )
             }
@@ -373,14 +395,14 @@ private fun ShelfToolbar(
         var sortOpen by remember { mutableStateOf(false) }
         Box {
             ShelfPillButton(onClick = { sortOpen = true }) {
-                Text("Sort · ${sort.label}", color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(stringResource(Res.string.sort_prefix, sort.label()), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             }
             DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }) {
                 SortMode.entries.forEach { mode ->
                     DropdownMenuItem(
                         text = {
                             Text(
-                                mode.label, color = if (mode == sort) MangaColors.Text else MangaColors.TextDim, fontFamily = archivo,
+                                mode.label(), color = if (mode == sort) MangaColors.Text else MangaColors.TextDim, fontFamily = archivo,
                                 fontWeight = if (mode == sort) FontWeight.Bold else FontWeight.Medium,
                             )
                         },
@@ -393,20 +415,21 @@ private fun ShelfToolbar(
         ShelfPillButton(onClick = viewModel::toggleDirection) {
             Icon(
                 if (ascending) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = if (ascending) "Ascending" else "Descending", tint = MangaColors.TextDim, modifier = Modifier.size(16.dp),
+                contentDescription = if (ascending) stringResource(Res.string.content_desc_ascending) else stringResource(Res.string.content_desc_descending),
+                tint = MangaColors.TextDim, modifier = Modifier.size(16.dp),
             )
         }
         var filterOpen by remember { mutableStateOf(false) }
         Box {
             ShelfPillButton(onClick = { filterOpen = true }) {
-                Text(filter.label, color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(filter.label(), color = MangaColors.TextDim, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             }
             DropdownMenu(expanded = filterOpen, onDismissRequest = { filterOpen = false }) {
                 LibraryFilter.entries.forEach { option ->
                     DropdownMenuItem(
                         text = {
                             Text(
-                                option.label, color = if (option == filter) MangaColors.Text else MangaColors.TextDim, fontFamily = archivo,
+                                option.label(), color = if (option == filter) MangaColors.Text else MangaColors.TextDim, fontFamily = archivo,
                                 fontWeight = if (option == filter) FontWeight.Bold else FontWeight.Medium,
                             )
                         },
@@ -435,9 +458,9 @@ private fun ShelfHeaderRow(filter: LibraryFilter, count: Int, archivo: FontFamil
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(filter.label, color = MangaColors.Text, fontFamily = anton, fontSize = 22.sp)
+        Text(filter.label(), color = MangaColors.Text, fontFamily = anton, fontSize = 22.sp)
         Text(
-            "$count " + if (count == 1) "TITLE" else "TITLES",
+            pluralStringResource(Res.plurals.shelf_title_count, count, count),
             color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 2.sp,
         )
     }
@@ -501,7 +524,7 @@ private fun ShelfCard(
             }
             if (isContinuing) {
                 Text(
-                    "CONTINUE", color = Color.White, fontFamily = archivo, fontWeight = FontWeight.ExtraBold,
+                    stringResource(Res.string.continue_badge), color = Color.White, fontFamily = archivo, fontWeight = FontWeight.ExtraBold,
                     fontSize = 8.sp, letterSpacing = 1.5.sp,
                     modifier = Modifier.align(Alignment.TopStart)
                         .offset(x = (-30).dp, y = 10.dp)
@@ -552,7 +575,7 @@ internal fun ShelfSelectionBadge(selected: Boolean, modifier: Modifier = Modifie
             .border(1.5.dp, if (selected) MangaColors.Accent else Color.White.copy(alpha = 0.7f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(14.dp))
+        if (selected) Icon(Icons.Default.Check, contentDescription = stringResource(Res.string.content_desc_selected), tint = Color.White, modifier = Modifier.size(14.dp))
     }
 }
 

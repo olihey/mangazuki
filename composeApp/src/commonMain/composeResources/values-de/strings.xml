@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MangaZuki</string>
+
+    <!-- Common actions, reused across dialogs -->
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_close">Schließen</string>
+
+    <!-- BackIcon.kt -->
+    <string name="content_desc_back">Zurück</string>
+
+    <!-- StatusRow.kt -->
+    <string name="status_finished">Abgeschlossen</string>
+    <string name="status_releasing">Erscheint</string>
+    <string name="status_not_yet_released">Noch nicht erschienen</string>
+    <string name="status_cancelled">Abgebrochen</string>
+    <string name="status_hiatus">Pausiert</string>
+    <string name="format_manga">Manga</string>
+    <string name="format_novel">Roman</string>
+    <string name="format_one_shot">Oneshot</string>
+    <string name="metadata_attribution_anilist">Daten bereitgestellt von AniList</string>
+    <string name="metadata_attribution_kitsu">Daten bereitgestellt von Kitsu</string>
+
+    <!-- LibraryScreen.kt: AddSourceChooserDialog -->
+    <string name="add_source_dialog_title">Bibliotheksquelle hinzufügen</string>
+    <string name="add_source_local_folder">Lokaler Ordner</string>
+    <string name="add_source_smb_share">SMB-Freigabe</string>
+
+    <!-- LibraryScreen.kt: SmbConnectDialog -->
+    <string name="smb_dialog_title">Mit SMB-Freigabe verbinden</string>
+    <string name="smb_field_host">Host</string>
+    <string name="smb_field_share">Freigabe</string>
+    <string name="smb_field_username">Benutzername (leer für anonym)</string>
+    <string name="smb_field_password">Passwort</string>
+    <string name="smb_field_root_path">Ordner innerhalb der Freigabe (optional)</string>
+    <string name="smb_action_connect">Verbinden</string>
+
+    <!-- Shared selection-mode actions (MangaShelfGrid.kt + MangaDetailScreen.kt) -->
+    <string name="selection_action_all">Alle</string>
+    <string name="selection_action_none">Keine</string>
+    <string name="selection_action_read">Gelesen</string>
+    <string name="selection_action_unread">Ungelesen</string>
+    <string name="selection_action_done">Fertig</string>
+
+    <!-- MangaShelfGrid.kt -->
+    <string name="shelf_add_source">+ Quelle hinzufügen</string>
+    <string name="shelf_empty_no_source">Noch keine Bibliotheksquelle eingerichtet.</string>
+    <string name="shelf_empty_no_series">In dieser Bibliothek wurden noch keine Serien gefunden.</string>
+    <string name="masthead_selected_label">Ausgewählt</string>
+    <plurals name="selection_title_count">
+        <item quantity="one">%1$d Titel</item>
+        <item quantity="other">%1$d Titel</item>
+    </plurals>
+    <string name="masthead_scanning_label">Scanne</string>
+    <string name="masthead_scan_progress">%1$d Serien · %2$d Kapitel</string>
+    <string name="masthead_scan_folders_checked">%1$d Ordner geprüft</string>
+    <string name="masthead_fetching_metadata_label">Metadaten laden</string>
+    <string name="masthead_fetch_progress">%1$d / %2$d</string>
+    <string name="tab_library">BIBLIOTHEK</string>
+    <string name="tab_your_page">DEINE SEITE</string>
+    <string name="regrant_banner_text">Der Zugriff auf die Quelle ist verloren gegangen. Erneut freigeben, um die Bibliothek aktuell zu halten.</string>
+    <string name="regrant_action">Erneut freigeben</string>
+    <string name="search_placeholder">Titel, Autoren suchen…</string>
+    <string name="content_desc_clear_search">Suche löschen</string>
+    <string name="sort_prefix">Sortierung · %1$s</string>
+    <string name="content_desc_ascending">Aufsteigend</string>
+    <string name="content_desc_descending">Absteigend</string>
+    <plurals name="shelf_title_count">
+        <item quantity="one">%1$d TITEL</item>
+        <item quantity="other">%1$d TITEL</item>
+    </plurals>
+    <string name="continue_badge">WEITER</string>
+    <string name="content_desc_selected">Ausgewählt</string>
+
+    <!-- SortMode / LibraryFilter enum labels (LibraryViewModel.kt enums, used in MangaShelfGrid.kt) -->
+    <string name="sort_name">Name</string>
+    <string name="sort_recently_added">Kürzlich hinzugefügt</string>
+    <string name="sort_recently_read">Kürzlich gelesen</string>
+    <string name="sort_release_start">Erscheinungsbeginn</string>
+    <string name="filter_show_all">Alle anzeigen</string>
+    <string name="filter_hide_read">Gelesene ausblenden</string>
+    <string name="filter_hide_matched">Zugeordnete ausblenden</string>
+
+    <!-- SeriesScreen.kt: FixMetadataDialog -->
+    <string name="fix_metadata_dialog_title">Metadaten korrigieren</string>
+    <string name="fix_metadata_field_title">Titel</string>
+    <string name="fix_metadata_action_search">Suchen</string>
+    <string name="fix_metadata_no_matches">Keine Treffer</string>
+
+    <!-- Chapter ordinal prefixes, shared by MangaDetailScreen.kt, YourPageScreen.kt, ReaderScreen.kt -->
+    <string name="chapter_prefix_ch">KAP.</string>
+    <string name="chapter_prefix_vol">BD.</string>
+
+    <!-- MangaDetailScreen.kt -->
+    <string name="content_desc_back_to_library">Zurück zur Bibliothek</string>
+    <string name="detail_library_button">Bibliothek</string>
+    <string name="detail_cta_read_again">Erneut lesen</string>
+    <string name="detail_cta_start_reading">Lesen starten</string>
+    <string name="detail_cta_continue">Weiter · %1$s %2$s</string>
+    <string name="detail_progress_label">FORTSCHRITT</string>
+    <string name="detail_progress_fraction">%1$d / %2$d</string>
+    <string name="chapters_header_title">KAPITEL</string>
+    <string name="chapters_header_total">%1$d GESAMT</string>
+    <plurals name="selection_chapters_selected">
+        <item quantity="one">%1$d KAPITEL AUSGEWÄHLT</item>
+        <item quantity="other">%1$d KAPITEL AUSGEWÄHLT</item>
+    </plurals>
+    <string name="chapter_tile_up_next">ALS NÄCHSTES</string>
+    <string name="content_desc_chapter_read">Gelesen</string>
+
+    <!-- YourPageScreen.kt -->
+    <string name="your_page_empty_state">Hier ist noch nichts -- lies ein, zwei Kapitel oder scanne deine Bibliothek, dann füllt sich das.</string>
+    <string name="your_page_jump_back_in_title">WEITERLESEN</string>
+    <string name="your_page_jump_back_in_subtitle">Kürzlich gelesen</string>
+    <string name="your_page_shelf_title">IN DEINEM REGAL</string>
+    <string name="your_page_shelf_subtitle">Angefangen</string>
+    <string name="your_page_fresh_title">NEUE KAPITEL</string>
+    <string name="your_page_fresh_subtitle">Kürzlich hinzugefügt</string>
+    <string name="your_page_read_total">%1$d / %2$d GELESEN</string>
+    <string name="your_page_resume">Fortsetzen</string>
+    <string name="your_page_new_badge">NEU</string>
+
+    <!-- Shared: chapter ordinal + name (YourPageScreen.kt, ReaderScreen.kt) -->
+    <string name="chapter_ordinal_with_name">%1$s %2$s · %3$s</string>
+
+    <!-- ReaderScreen.kt -->
+    <string name="reader_page_of">Seite %1$d von %2$d</string>
+    <string name="reader_tap_zone_toggle_menu">Menü ein-/ausblenden</string>
+    <string name="reader_tap_zone_next_page">Nächste Seite</string>
+    <string name="reader_tap_zone_previous">Zurück</string>
+    <string name="reader_scroll_to_read">Zum Lesen scrollen</string>
+    <string name="reader_direction_hint_vertical_continuous">Wischen oder vertikal scrollen, um weiterzugehen</string>
+    <string name="reader_direction_hint_vertical_paged">Vertikal wischen, um weiterzugehen</string>
+    <string name="reader_direction_hint_horizontal_rtl">Seitenbereiche antippen, um weiterzugehen · Manga-Reihenfolge</string>
+    <string name="reader_direction_hint_horizontal">Seitenbereiche antippen, um weiterzugehen</string>
+    <string name="reader_next_chapter_label">Nächstes Kapitel</string>
+    <string name="content_desc_page_number">Seite %1$d</string>
+    <string name="reader_help_side_top">oben</string>
+    <string name="reader_help_side_bottom">unten</string>
+    <string name="reader_help_side_left">links</string>
+    <string name="reader_help_side_right">rechts</string>
+    <string name="reader_help_text">Tippe %1$s, um vorwärtszugehen, %2$s für zurück, Mitte für das Menü.\nDoppeltippen oder zum Zoomen zwei Finger nutzen. Lautstärketasten blättern Seiten um.\n\nTippe irgendwohin, um mit dem Lesen zu beginnen.</string>
+
+    <!-- SettingsScreen.kt: enum label()/shortLabel() functions -->
+    <string name="theme_light">Hell</string>
+    <string name="theme_dark">Dunkel</string>
+    <string name="theme_system">Systemeinstellung folgen</string>
+    <string name="title_language_file">Aus Datei-/Ordnername</string>
+    <string name="title_language_romaji">Romaji</string>
+    <string name="title_language_english">Englisch</string>
+    <string name="title_language_native">Originalsprache</string>
+    <string name="start_screen_library">Bibliothek</string>
+    <string name="start_screen_your_page">Deine Seite</string>
+    <string name="metadata_provider_anilist">AniList</string>
+    <string name="metadata_provider_kitsu">Kitsu</string>
+    <string name="reading_mode_paged_ltr">Seitenweise, links nach rechts</string>
+    <string name="reading_mode_paged_rtl">Seitenweise, rechts nach links (Manga-Standard)</string>
+    <string name="reading_mode_vertical_paged">Vertikal, eine Seite auf einmal</string>
+    <string name="reading_mode_vertical_continuous">Vertikal, durchgehend scrollen (Webtoon)</string>
+    <string name="reading_mode_short_paged_ltr">Seitenweise →</string>
+    <string name="reading_mode_short_paged_rtl">Seitenweise ←</string>
+    <string name="reading_mode_short_vertical_paged">Vertikal ↕</string>
+    <string name="reading_mode_short_vertical_continuous">Webtoon ↕</string>
+
+    <!-- SettingsScreen.kt: screen chrome -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_section_theme">Design</string>
+    <string name="settings_section_series_title">Serientitel</string>
+    <string name="settings_section_series_title_desc">Welcher Titel für eine zugeordnete Serie angezeigt wird - greift auf den Datei-/Ordnernamen zurück, wenn der zugeordnete Anbieter diese Sprache nicht hat.</string>
+    <string name="settings_section_start_screen">Startbildschirm</string>
+    <string name="settings_section_start_screen_desc">Welcher Bibliotheks-Tab beim Start geöffnet wird -- manuelles Wechseln bleibt für den Rest der Sitzung bestehen.</string>
+    <string name="settings_section_metadata_provider">Metadatenanbieter</string>
+    <string name="settings_section_metadata_provider_desc">Wird für den automatischen Abgleich neuer Serien verwendet. Metadaten korrigieren (auf einem Serienbildschirm) kann für diese eine Suche immer einen anderen Anbieter verwenden.</string>
+    <string name="settings_section_reading_mode">Standard-Lesemodus</string>
+    <string name="settings_section_reading_mode_desc">Wird für jede Serie verwendet, die du nicht einzeln umgestellt hast — die Reader-Oberfläche hat einen Schnellumschalter, der sich deine Wahl pro Serie merkt.</string>
+    <string name="settings_swap_tap_zones_title">Tippbereiche vertauschen</string>
+    <string name="settings_swap_tap_zones_subtitle">Vertauscht, welche Seite des Bildschirms vor- bzw. zurückblättert</string>
+    <string name="settings_volume_keys_title">Lautstärketasten blättern Seiten um</string>
+    <string name="settings_volume_keys_subtitle">Die Hardware-Lautstärketasten beim Lesen verwenden</string>
+    <string name="settings_section_cloud_sync">Cloud-Synchronisierung</string>
+    <string name="settings_section_cloud_sync_desc">Lesefortschritt und Gelesen-/Ungelesen-Status folgen dir geräteübergreifend über einen versteckten Ordner in deinem eigenen Google Drive — nichts anderes in deinem Drive wird berührt.</string>
+    <string name="settings_sign_in_google">Mit Google anmelden</string>
+    <string name="settings_signing_in">Anmeldung läuft…</string>
+    <string name="settings_sync_progress_title">Lesefortschritt synchronisieren</string>
+    <string name="settings_sync_progress_subtitle">Pausiert die Synchronisierung, ohne dich abzumelden</string>
+    <string name="settings_sync_metadata_title">Korrigierte Metadaten synchronisieren</string>
+    <string name="settings_sync_metadata_subtitle">Teilt Treffer von Metadaten korrigieren zwischen deinen Geräten, damit der Lesefortschritt korrekt übereinstimmt</string>
+    <string name="settings_sync_background_title">Im Hintergrund synchronisieren</string>
+    <string name="settings_sync_background_subtitle">Aus: synchronisiert nur, während die App geöffnet ist — keine geplante Akku-/Netzwerknutzung</string>
+    <string name="settings_sync_last_synced">Zuletzt synchronisiert: %1$s</string>
+    <string name="settings_sync_not_synced_yet">Noch nicht synchronisiert</string>
+    <string name="settings_sign_out">Abmelden</string>
+    <string name="settings_section_debug">Debug</string>
+    <string name="settings_section_debug_desc">Die Rohdateien einsehen oder löschen, die dieses Gerät über Google Drive synchronisiert.</string>
+    <string name="settings_debug_view_progress">progress.json anzeigen</string>
+    <string name="settings_debug_view_metadata_aliases">metadata_aliases.json anzeigen</string>
+    <string name="settings_debug_clear_progress">progress.json löschen</string>
+    <string name="settings_debug_clear_metadata_aliases">metadata_aliases.json löschen</string>
+    <string name="settings_reset_library_title">Bibliothek zurücksetzen</string>
+    <string name="settings_reset_library_desc">Vergisst die eingerichtete Quelle und löscht jede gescannte Serie, jedes Kapitel und jede Fortschrittszeile sowie alle zwischengespeicherten Cover-/Banner-Dateien. Kann nicht rückgängig gemacht werden.</string>
+    <string name="settings_reset_confirm_title">Bibliothek zurücksetzen?</string>
+    <string name="settings_reset_confirm_body">Dies löscht deine gesamte gescannte Bibliothek und alle zwischengespeicherten Cover-/Banner-Dateien und vergisst die eingerichtete Quelle (einschließlich eines gespeicherten SMB-Passworts). Deine Manga-Dateien selbst bleiben unangetastet. Dies kann nicht rückgängig gemacht werden.</string>
+    <string name="settings_reset_confirm_action">Zurücksetzen</string>
+    <string name="settings_debug_fetching">Wird von Drive geladen…</string>
+    <string name="settings_debug_not_signed_in">(nicht angemeldet oder noch keine Datei vorhanden)</string>
+    <string name="settings_debug_clear_confirm_title">%1$s löschen?</string>
+    <string name="settings_debug_clear_confirm_body">Überschreibt die Kopie auf Drive mit einer leeren Datei. Die lokalen Daten dieses Geräts bleiben unberührt und werden bei der nächsten Synchronisierung wieder hochgeladen, aber andere Geräte verlieren ihren Beitrag zu dieser Datei, bis sie das nächste Mal synchronisieren.</string>
+    <string name="settings_debug_clear_action">Löschen</string>
+</resources>

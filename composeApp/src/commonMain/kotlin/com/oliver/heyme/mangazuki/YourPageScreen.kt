@@ -41,6 +41,8 @@ import com.oliver.heyme.mangazuki.core.data.LibraryCard
 import com.oliver.heyme.mangazuki.core.data.RecentChapterCard
 import com.oliver.heyme.mangazuki.core.domain.formatShortDate
 import com.oliver.heyme.mangazuki.core.domain.nowEpochMillis
+import manga_reader.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 /** Shown in [MangaShelfGrid] under the LIBRARY/YOUR PAGE tab switcher when YOUR_PAGE is active
  * -- a dashboard built from the "Manga Welcome Tablet" design (Claude Design, imported
@@ -72,7 +74,7 @@ fun YourPageContent(
     if (jumpBackIn.isEmpty() && fresh.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                "Nothing here yet -- read a chapter or two, or scan your library, and this fills in.",
+                stringResource(Res.string.your_page_empty_state),
                 color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                 textAlign = TextAlign.Center, modifier = Modifier.padding(48.dp),
             )
@@ -83,7 +85,7 @@ fun YourPageContent(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)) {
         if (jumpBackIn.isNotEmpty()) {
             item {
-                YourPageSection("JUMP BACK IN", "Recently read", archivo, anton) {
+                YourPageSection(stringResource(Res.string.your_page_jump_back_in_title), stringResource(Res.string.your_page_jump_back_in_subtitle), archivo, anton) {
                     ChunkedGrid(jumpBackIn, columns = 2, spacing = 18.dp) { card ->
                         val chapter = resumeChapters[card.id]
                         if (chapter != null) {
@@ -95,7 +97,7 @@ fun YourPageContent(
         }
         if (shelf.isNotEmpty()) {
             item {
-                YourPageSection("ON YOUR SHELF", "In progress", archivo, anton) {
+                YourPageSection(stringResource(Res.string.your_page_shelf_title), stringResource(Res.string.your_page_shelf_subtitle), archivo, anton) {
                     ChunkedGrid(shelf, columns = 6, spacing = 16.dp) { card ->
                         ShelfMiniCard(card, titleLanguage, onClick = { onSeriesClick(card.id) }, archivo, anton)
                     }
@@ -104,7 +106,7 @@ fun YourPageContent(
         }
         if (fresh.isNotEmpty()) {
             item {
-                YourPageSection("FRESH CHAPTERS", "Recently added", archivo, anton) {
+                YourPageSection(stringResource(Res.string.your_page_fresh_title), stringResource(Res.string.your_page_fresh_subtitle), archivo, anton) {
                     ChunkedGrid(fresh, columns = 6, spacing = 16.dp) { chapter ->
                         FreshChapterCard(
                             chapter, titleLanguage, isNew = chapter.dateAdded >= newSince,
@@ -184,14 +186,14 @@ private fun JumpBackInCard(
             )
             if (prefix.isNotEmpty()) {
                 Text(
-                    "$prefix $value · ${chapter.displayName}", color = MangaColors.TextDim, fontFamily = archivo,
+                    stringResource(Res.string.chapter_ordinal_with_name, prefix, value, chapter.displayName), color = MangaColors.TextDim, fontFamily = archivo,
                     fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 7.dp),
                 )
             }
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    "$readCount / ${card.chapterCount} READ", color = MangaColors.TextMuted, fontFamily = archivo,
+                    stringResource(Res.string.your_page_read_total, readCount, card.chapterCount), color = MangaColors.TextMuted, fontFamily = archivo,
                     fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 1.sp,
                 )
                 Text("$percent%", color = MangaColors.Accent, fontFamily = archivo, fontWeight = FontWeight.ExtraBold, fontSize = 10.sp)
@@ -207,7 +209,7 @@ private fun JumpBackInCard(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                Text("Resume", color = Color.White, fontFamily = archivo, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                Text(stringResource(Res.string.your_page_resume), color = Color.White, fontFamily = archivo, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
             }
         }
     }
@@ -266,7 +268,7 @@ private fun FreshChapterCard(
             )
             if (isNew) {
                 Text(
-                    "NEW", color = MangaColors.Bg, fontFamily = archivo, fontWeight = FontWeight.ExtraBold,
+                    stringResource(Res.string.your_page_new_badge), color = MangaColors.Bg, fontFamily = archivo, fontWeight = FontWeight.ExtraBold,
                     fontSize = 8.sp, letterSpacing = 1.4.sp,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
                         .background(MangaColors.Accent, RoundedCornerShape(6.dp)).padding(horizontal = 7.dp, vertical = 3.dp),
@@ -302,9 +304,10 @@ private fun FreshChapterCard(
 /** "CH." + a number, or "VOL." + a volume, or blank when a chapter has neither (PLAN.md §5, §17)
  * -- same cascade as [MangaDetailScreen]'s `chapterOrdinal`, minus its list-position fallback
  * (there's no "index in list" here, just a single chapter pulled out of context). */
+@Composable
 private fun chapterOrdinalFor(number: Double?, volume: Double?): Pair<String, String> = when {
-    number != null -> "CH." to formatOrdinalNumber(number)
-    volume != null -> "VOL." to formatOrdinalNumber(volume)
+    number != null -> stringResource(Res.string.chapter_prefix_ch) to formatOrdinalNumber(number)
+    volume != null -> stringResource(Res.string.chapter_prefix_vol) to formatOrdinalNumber(volume)
     else -> "" to ""
 }
 

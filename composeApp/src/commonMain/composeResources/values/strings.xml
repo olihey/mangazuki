@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MangaZuki</string>
+
+    <!-- Common actions, reused across dialogs -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+
+    <!-- BackIcon.kt -->
+    <string name="content_desc_back">Back</string>
+
+    <!-- StatusRow.kt -->
+    <string name="status_finished">Finished</string>
+    <string name="status_releasing">Releasing</string>
+    <string name="status_not_yet_released">Not yet released</string>
+    <string name="status_cancelled">Cancelled</string>
+    <string name="status_hiatus">Hiatus</string>
+    <string name="format_manga">Manga</string>
+    <string name="format_novel">Novel</string>
+    <string name="format_one_shot">One-shot</string>
+    <string name="metadata_attribution_anilist">Data provided by AniList</string>
+    <string name="metadata_attribution_kitsu">Data provided by Kitsu</string>
+
+    <!-- LibraryScreen.kt: AddSourceChooserDialog -->
+    <string name="add_source_dialog_title">Add library source</string>
+    <string name="add_source_local_folder">Local folder</string>
+    <string name="add_source_smb_share">SMB share</string>
+
+    <!-- LibraryScreen.kt: SmbConnectDialog -->
+    <string name="smb_dialog_title">Connect to SMB share</string>
+    <string name="smb_field_host">Host</string>
+    <string name="smb_field_share">Share</string>
+    <string name="smb_field_username">Username (blank for anonymous)</string>
+    <string name="smb_field_password">Password</string>
+    <string name="smb_field_root_path">Folder within share (optional)</string>
+    <string name="smb_action_connect">Connect</string>
+
+    <!-- Shared selection-mode actions (MangaShelfGrid.kt + MangaDetailScreen.kt) -->
+    <string name="selection_action_all">All</string>
+    <string name="selection_action_none">None</string>
+    <string name="selection_action_read">Read</string>
+    <string name="selection_action_unread">Unread</string>
+    <string name="selection_action_done">Done</string>
+
+    <!-- MangaShelfGrid.kt -->
+    <string name="shelf_add_source">+ Add source</string>
+    <string name="shelf_empty_no_source">No library source configured yet.</string>
+    <string name="shelf_empty_no_series">No series found in this library yet.</string>
+    <string name="masthead_selected_label">Selected</string>
+    <plurals name="selection_title_count">
+        <item quantity="one">%1$d title</item>
+        <item quantity="other">%1$d titles</item>
+    </plurals>
+    <string name="masthead_scanning_label">Scanning</string>
+    <string name="masthead_scan_progress">%1$d series · %2$d chapters</string>
+    <string name="masthead_scan_folders_checked">%1$d folders checked</string>
+    <string name="masthead_fetching_metadata_label">Fetching metadata</string>
+    <string name="masthead_fetch_progress">%1$d / %2$d</string>
+    <string name="tab_library">LIBRARY</string>
+    <string name="tab_your_page">YOUR PAGE</string>
+    <string name="regrant_banner_text">Source access was lost. Re-grant to keep your library updated.</string>
+    <string name="regrant_action">Re-grant</string>
+    <string name="search_placeholder">Search titles, authors…</string>
+    <string name="content_desc_clear_search">Clear search</string>
+    <string name="sort_prefix">Sort · %1$s</string>
+    <string name="content_desc_ascending">Ascending</string>
+    <string name="content_desc_descending">Descending</string>
+    <plurals name="shelf_title_count">
+        <item quantity="one">%1$d TITLE</item>
+        <item quantity="other">%1$d TITLES</item>
+    </plurals>
+    <string name="continue_badge">CONTINUE</string>
+    <string name="content_desc_selected">Selected</string>
+
+    <!-- SortMode / LibraryFilter enum labels (LibraryViewModel.kt enums, used in MangaShelfGrid.kt) -->
+    <string name="sort_name">Name</string>
+    <string name="sort_recently_added">Recently added</string>
+    <string name="sort_recently_read">Recently read</string>
+    <string name="sort_release_start">Release start</string>
+    <string name="filter_show_all">Show all</string>
+    <string name="filter_hide_read">Hide read</string>
+    <string name="filter_hide_matched">Hide matched</string>
+
+    <!-- SeriesScreen.kt: FixMetadataDialog -->
+    <string name="fix_metadata_dialog_title">Fix metadata</string>
+    <string name="fix_metadata_field_title">Title</string>
+    <string name="fix_metadata_action_search">Search</string>
+    <string name="fix_metadata_no_matches">No matches</string>
+
+    <!-- Chapter ordinal prefixes, shared by MangaDetailScreen.kt, YourPageScreen.kt, ReaderScreen.kt -->
+    <string name="chapter_prefix_ch">CH.</string>
+    <string name="chapter_prefix_vol">VOL.</string>
+
+    <!-- MangaDetailScreen.kt -->
+    <string name="content_desc_back_to_library">Back to library</string>
+    <string name="detail_library_button">Library</string>
+    <string name="detail_cta_read_again">Read again</string>
+    <string name="detail_cta_start_reading">Start reading</string>
+    <string name="detail_cta_continue">Continue · %1$s %2$s</string>
+    <string name="detail_progress_label">PROGRESS</string>
+    <string name="detail_progress_fraction">%1$d / %2$d</string>
+    <string name="chapters_header_title">CHAPTERS</string>
+    <string name="chapters_header_total">%1$d TOTAL</string>
+    <plurals name="selection_chapters_selected">
+        <item quantity="one">%1$d CHAPTER SELECTED</item>
+        <item quantity="other">%1$d CHAPTERS SELECTED</item>
+    </plurals>
+    <string name="chapter_tile_up_next">UP NEXT</string>
+    <string name="content_desc_chapter_read">Read</string>
+
+    <!-- YourPageScreen.kt -->
+    <string name="your_page_empty_state">Nothing here yet -- read a chapter or two, or scan your library, and this fills in.</string>
+    <string name="your_page_jump_back_in_title">JUMP BACK IN</string>
+    <string name="your_page_jump_back_in_subtitle">Recently read</string>
+    <string name="your_page_shelf_title">ON YOUR SHELF</string>
+    <string name="your_page_shelf_subtitle">In progress</string>
+    <string name="your_page_fresh_title">FRESH CHAPTERS</string>
+    <string name="your_page_fresh_subtitle">Recently added</string>
+    <string name="your_page_read_total">%1$d / %2$d READ</string>
+    <string name="your_page_resume">Resume</string>
+    <string name="your_page_new_badge">NEW</string>
+
+    <!-- Shared: chapter ordinal + name (YourPageScreen.kt, ReaderScreen.kt) -->
+    <string name="chapter_ordinal_with_name">%1$s %2$s · %3$s</string>
+
+    <!-- ReaderScreen.kt -->
+    <string name="reader_page_of">Page %1$d of %2$d</string>
+    <string name="reader_tap_zone_toggle_menu">Toggle Menu</string>
+    <string name="reader_tap_zone_next_page">Next Page</string>
+    <string name="reader_tap_zone_previous">Previous</string>
+    <string name="reader_scroll_to_read">Scroll to read</string>
+    <string name="reader_direction_hint_vertical_continuous">Swipe or scroll vertically to advance</string>
+    <string name="reader_direction_hint_vertical_paged">Swipe vertically to advance</string>
+    <string name="reader_direction_hint_horizontal_rtl">Tap side zones to advance · manga order</string>
+    <string name="reader_direction_hint_horizontal">Tap side zones to advance</string>
+    <string name="reader_next_chapter_label">Next chapter</string>
+    <string name="content_desc_page_number">Page %1$d</string>
+    <string name="reader_help_side_top">top</string>
+    <string name="reader_help_side_bottom">bottom</string>
+    <string name="reader_help_side_left">left</string>
+    <string name="reader_help_side_right">right</string>
+    <string name="reader_help_text">Tap %1$s to go forward, %2$s to go back, center for menu.\nDouble-tap or pinch to zoom. Volume keys turn pages.\n\nTap anywhere to start reading.</string>
+
+    <!-- SettingsScreen.kt: enum label()/shortLabel() functions -->
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">Follow system setting</string>
+    <string name="title_language_file">From file/folder name</string>
+    <string name="title_language_romaji">Romaji</string>
+    <string name="title_language_english">English</string>
+    <string name="title_language_native">Native</string>
+    <string name="start_screen_library">Library</string>
+    <string name="start_screen_your_page">Your Page</string>
+    <string name="metadata_provider_anilist">AniList</string>
+    <string name="metadata_provider_kitsu">Kitsu</string>
+    <string name="reading_mode_paged_ltr">Paged, left to right</string>
+    <string name="reading_mode_paged_rtl">Paged, right to left (manga default)</string>
+    <string name="reading_mode_vertical_paged">Vertical, one page at a time</string>
+    <string name="reading_mode_vertical_continuous">Vertical, continuous scroll (webtoon)</string>
+    <string name="reading_mode_short_paged_ltr">Paged →</string>
+    <string name="reading_mode_short_paged_rtl">Paged ←</string>
+    <string name="reading_mode_short_vertical_paged">Vertical ↕</string>
+    <string name="reading_mode_short_vertical_continuous">Webtoon ↕</string>
+
+    <!-- SettingsScreen.kt: screen chrome -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_theme">Theme</string>
+    <string name="settings_section_series_title">Series title</string>
+    <string name="settings_section_series_title_desc">Which title to show for a matched series - falls back to the file/folder name if the matched provider doesn't have that language for it.</string>
+    <string name="settings_section_start_screen">Start screen</string>
+    <string name="settings_section_start_screen_desc">Which Library tab to open on -- switching manually still sticks for the rest of the session.</string>
+    <string name="settings_section_metadata_provider">Metadata provider</string>
+    <string name="settings_section_metadata_provider_desc">Used for background matching of new series. Fix Metadata (on a series screen) can always search a different provider just for that one lookup.</string>
+    <string name="settings_section_reading_mode">Default reading mode</string>
+    <string name="settings_section_reading_mode_desc">Used for any series you haven't switched individually — the reader's chrome has a quick-switcher that remembers your choice per series.</string>
+    <string name="settings_swap_tap_zones_title">Swap tap zones</string>
+    <string name="settings_swap_tap_zones_subtitle">Flip which side of the screen advances vs goes back</string>
+    <string name="settings_volume_keys_title">Volume keys turn pages</string>
+    <string name="settings_volume_keys_subtitle">Use the hardware volume buttons while reading</string>
+    <string name="settings_section_cloud_sync">Cloud sync</string>
+    <string name="settings_section_cloud_sync_desc">Reading progress and read/unread state follow you across devices via a hidden folder in your own Google Drive — nothing else in your Drive is touched.</string>
+    <string name="settings_sign_in_google">Sign in with Google</string>
+    <string name="settings_signing_in">Signing in…</string>
+    <string name="settings_sync_progress_title">Sync reading progress</string>
+    <string name="settings_sync_progress_subtitle">Pauses syncing without signing out</string>
+    <string name="settings_sync_metadata_title">Sync fixed metadata</string>
+    <string name="settings_sync_metadata_subtitle">Shares Fix Metadata matches across your devices to help reading progress line up correctly</string>
+    <string name="settings_sync_background_title">Sync in background</string>
+    <string name="settings_sync_background_subtitle">Off: only syncs while the app is open — no scheduled battery/network use</string>
+    <string name="settings_sync_last_synced">Last synced %1$s</string>
+    <string name="settings_sync_not_synced_yet">Not synced yet</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_section_debug">Debug</string>
+    <string name="settings_section_debug_desc">Inspect or clear the raw files this device syncs through Google Drive.</string>
+    <string name="settings_debug_view_progress">View progress.json</string>
+    <string name="settings_debug_view_metadata_aliases">View metadata_aliases.json</string>
+    <string name="settings_debug_clear_progress">Clear progress.json</string>
+    <string name="settings_debug_clear_metadata_aliases">Clear metadata_aliases.json</string>
+    <string name="settings_reset_library_title">Reset library</string>
+    <string name="settings_reset_library_desc">Forgets the configured source and wipes every scanned series, chapter, and reading-progress row, plus all cached cover/banner files. Can't be undone.</string>
+    <string name="settings_reset_confirm_title">Reset library?</string>
+    <string name="settings_reset_confirm_body">This deletes your entire scanned library and all cached cover/banner files, and forgets the configured source (including any saved SMB password). Your manga files themselves are untouched. This can't be undone.</string>
+    <string name="settings_reset_confirm_action">Reset</string>
+    <string name="settings_debug_fetching">Fetching from Drive…</string>
+    <string name="settings_debug_not_signed_in">(not signed in, or no file yet)</string>
+    <string name="settings_debug_clear_confirm_title">Clear %1$s?</string>
+    <string name="settings_debug_clear_confirm_body">Overwrites the Drive copy with an empty file. This device's own local data isn't touched and will re-upload on the next sync, but other devices lose their contribution to this file until they next sync too.</string>
+    <string name="settings_debug_clear_action">Clear</string>
+</resources>

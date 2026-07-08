@@ -142,9 +142,6 @@
     <string name="reader_help_text">Tippe %1$s, um vorwärtszugehen, %2$s für zurück, Mitte für das Menü.\nDoppeltippen oder zum Zoomen zwei Finger nutzen. Lautstärketasten blättern Seiten um.\n\nTippe irgendwohin, um mit dem Lesen zu beginnen.</string>
 
     <!-- SettingsScreen.kt: enum label()/shortLabel() functions -->
-    <string name="theme_light">Hell</string>
-    <string name="theme_dark">Dunkel</string>
-    <string name="theme_system">Systemeinstellung folgen</string>
     <string name="title_language_file">Aus Datei-/Ordnername</string>
     <string name="title_language_romaji">Romaji</string>
     <string name="title_language_english">Englisch</string>
@@ -164,7 +161,6 @@
 
     <!-- SettingsScreen.kt: screen chrome -->
     <string name="settings_title">Einstellungen</string>
-    <string name="settings_section_theme">Design</string>
     <string name="settings_section_series_title">Serientitel</string>
     <string name="settings_section_series_title_desc">Welcher Titel für eine zugeordnete Serie angezeigt wird - greift auf den Datei-/Ordnernamen zurück, wenn der zugeordnete Anbieter diese Sprache nicht hat.</string>
     <string name="settings_section_start_screen">Startbildschirm</string>

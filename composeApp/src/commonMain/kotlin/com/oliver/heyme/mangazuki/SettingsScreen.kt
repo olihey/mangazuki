@@ -41,13 +41,6 @@ import manga_reader.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
-fun ThemeMode.label(): String = when (this) {
-    ThemeMode.LIGHT -> stringResource(Res.string.theme_light)
-    ThemeMode.DARK -> stringResource(Res.string.theme_dark)
-    ThemeMode.SYSTEM -> stringResource(Res.string.theme_system)
-}
-
-@Composable
 fun TitleLanguage.label(): String = when (this) {
     TitleLanguage.FILE -> stringResource(Res.string.title_language_file)
     TitleLanguage.ANILIST_ROMAJI -> stringResource(Res.string.title_language_romaji)
@@ -110,7 +103,6 @@ fun SettingsScreen(
     var viewJsonDialog by remember { mutableStateOf<ViewJsonDialogState?>(null) }
     var clearTarget by remember { mutableStateOf<DebugFile?>(null) }
     val coroutineScope = rememberCoroutineScope()
-    val themeMode by appPreferences.themeMode.collectAsState()
     val titleLanguage by appPreferences.titleLanguage.collectAsState()
     val startScreen by appPreferences.startScreen.collectAsState()
     val metadataProvider by appPreferences.metadataProvider.collectAsState()
@@ -132,26 +124,6 @@ fun SettingsScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxWidth().verticalScroll(rememberScrollState())) {
-            Text(
-                stringResource(Res.string.settings_section_theme),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp),
-            )
-            ThemeMode.entries.forEach { mode ->
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clickable { appPreferences.setThemeMode(mode) }
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    RadioButton(selected = mode == themeMode, onClick = { appPreferences.setThemeMode(mode) })
-                    Text(mode.label())
-                }
-            }
-
-            HorizontalDivider(Modifier.padding(vertical = 12.dp))
-
             Text(
                 stringResource(Res.string.settings_section_series_title),
                 style = MaterialTheme.typography.titleSmall,

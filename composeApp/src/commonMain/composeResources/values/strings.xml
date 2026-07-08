@@ -142,9 +142,6 @@
     <string name="reader_help_text">Tap %1$s to go forward, %2$s to go back, center for menu.\nDouble-tap or pinch to zoom. Volume keys turn pages.\n\nTap anywhere to start reading.</string>
 
     <!-- SettingsScreen.kt: enum label()/shortLabel() functions -->
-    <string name="theme_light">Light</string>
-    <string name="theme_dark">Dark</string>
-    <string name="theme_system">Follow system setting</string>
     <string name="title_language_file">From file/folder name</string>
     <string name="title_language_romaji">Romaji</string>
     <string name="title_language_english">English</string>
@@ -164,7 +161,6 @@
 
     <!-- SettingsScreen.kt: screen chrome -->
     <string name="settings_title">Settings</string>
-    <string name="settings_section_theme">Theme</string>
     <string name="settings_section_series_title">Series title</string>
     <string name="settings_section_series_title_desc">Which title to show for a matched series - falls back to the file/folder name if the matched provider doesn't have that language for it.</string>
     <string name="settings_section_start_screen">Start screen</string>

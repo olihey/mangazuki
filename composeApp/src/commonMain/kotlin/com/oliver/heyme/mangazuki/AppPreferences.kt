@@ -6,9 +6,6 @@ import com.russhwolf.settings.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/** Light/dark, or follow the system setting. */
-enum class ThemeMode { LIGHT, DARK, SYSTEM }
-
 /** Which title to display for a series (PLAN.md §9): the scanned file/folder name, or one of
  * AniList's title languages once matched. Each AniList option falls back to the file name if
  * that language wasn't available for the matched work — see [displayTitle]. */
@@ -26,24 +23,12 @@ enum class MetadataProviderChoice { ANILIST, KITSU }
 enum class StartScreen { LIBRARY, YOUR_PAGE }
 
 /**
- * App-wide display preferences. [themeMode]/[titleLanguage] are `StateFlow`s, not plain
- * settings-backed properties like the other preferences classes — `App()` wraps the whole nav host
- * in `MaterialTheme`, above where `SettingsScreen` lives, so a change needs to propagate back up
- * rather than just being read once; the library/series screens need the same live propagation.
+ * App-wide display preferences. [titleLanguage] is a `StateFlow`, not a plain settings-backed
+ * property like the other preferences classes — the library/series screens live below where
+ * `SettingsScreen` sits in the tree, so a change needs to propagate back up rather than just
+ * being read once.
  */
 class AppPreferences(private val settings: Settings) {
-
-    private val _themeMode = MutableStateFlow(
-        settings.getStringOrNull(KEY_THEME_MODE)
-            ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
-            ?: ThemeMode.SYSTEM,
-    )
-    val themeMode: StateFlow<ThemeMode> = _themeMode
-
-    fun setThemeMode(mode: ThemeMode) {
-        _themeMode.value = mode
-        settings.putString(KEY_THEME_MODE, mode.name)
-    }
 
     private val _titleLanguage = MutableStateFlow(
         settings.getStringOrNull(KEY_TITLE_LANGUAGE)
@@ -154,7 +139,6 @@ class AppPreferences(private val settings: Settings) {
     }
 
     private companion object {
-        const val KEY_THEME_MODE = "app.themeMode"
         const val KEY_TITLE_LANGUAGE = "app.titleLanguage"
         const val KEY_START_SCREEN = "app.startScreen"
         const val KEY_METADATA_PROVIDER = "app.metadataProvider"

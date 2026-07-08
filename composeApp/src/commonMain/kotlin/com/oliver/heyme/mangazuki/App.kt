@@ -1,9 +1,7 @@
 package com.oliver.heyme.mangazuki
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -16,14 +14,10 @@ import androidx.navigation.compose.rememberNavController
 @Composable
 fun App(graph: AppGraph, onPickFolder: () -> Unit, onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}) {
     val navController = rememberNavController()
-    val themeMode by graph.appPreferences.themeMode.collectAsState()
     val titleLanguage by graph.appPreferences.titleLanguage.collectAsState()
-    val darkTheme = when (themeMode) {
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-    }
-    MaterialTheme(colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()) {
+    // Always dark: the app's whole visual language (MangaColors, the shelf/detail designs) is
+    // built on a dark palette, so the light/system theme options were dropped.
+    MaterialTheme(colorScheme = darkColorScheme()) {
         NavHost(navController = navController, startDestination = "library") {
             composable("library") {
                 LibraryScreen(

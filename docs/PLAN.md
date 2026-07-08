@@ -1428,11 +1428,10 @@ double-page spread pairing (aspect-ratio heuristic via `PageProvider.pageSize`, 
 wide/landscape containers), §7.5 selection mode + bulk read/unread on both the library
 (long-press a series) and series screen (long-press a chapter, or tap a volume header to select
 the whole volume), a real Settings screen, a chrome quick-switcher for live, per-series
-reading-mode changes (§8), and an app-wide theme setting (Light/Dark/Follow system, via
-`AppPreferences.themeMode` — a reactive `StateFlow` rather than a plain settings-backed property
-like the other prefs classes, since `App()` wraps the whole nav host in `MaterialTheme` above
-where `SettingsScreen` lives and needs the change to propagate back up live, not just on next
-launch) are all in and verified on-device.
+reading-mode changes (§8) are all in and verified on-device. (An app-wide Light/Dark/System
+theme setting shipped with this phase but was later removed — the shelf/detail redesigns
+committed the whole app to a dark-only visual language (`MangaColors`), so `App()` now applies
+`darkColorScheme()` unconditionally and the Settings section is gone.)
 
 **Phase 3 status: done.** `AniListMetadataProvider` (`core/metadata`) implements
 `MetadataProvider` against the public `graphql.anilist.co` endpoint (no auth) with its own
@@ -1455,8 +1454,8 @@ across the schema migration (`1.sqm`, see §5's `verifyMigrations` note) with ze
 
 **Series title language setting.** A matched series stores all three AniList title languages
 (`title_romaji`/`title_english`/`title_native`, `2.sqm`), not just the "preferred" pick used for
-search/description purposes internally. `AppPreferences.titleLanguage` (a `StateFlow`, same
-propagate-live reasoning as `themeMode`) lets Settings choose which one the library/series/reader
+search/description purposes internally. `AppPreferences.titleLanguage` (a `StateFlow`, so changes
+propagate live to screens below Settings) lets Settings choose which one the library/series/reader
 screens display - `LibraryCard.displayTitle(language)` / `Series.displayTitle(language)`
 (`DisplayTitle.kt`) fall back to the file-derived `title` whenever the chosen language wasn't
 available for that match, or the series isn't matched at all. Default is `FILE`, so existing
@@ -1871,7 +1870,7 @@ a dependency; the `composeResources/values/` directory and its generated
 `manga_reader.composeapp.generated.resources.Res` accessor are new.
 
 Notable fallout from doing this as a real pass rather than a token gesture:
-- Enum `label()`/`shortLabel()` extension functions (`ThemeMode`, `TitleLanguage`, `StartScreen`,
+- Enum `label()`/`shortLabel()` extension functions (`TitleLanguage`, `StartScreen`,
   `MetadataProviderChoice`, `ReadingMode` in `SettingsScreen.kt`; `SortMode`, `LibraryFilter` in
   `MangaShelfGrid.kt`) became `@Composable` functions, since `stringResource` can only be called
   from composition — `SortMode`/`LibraryFilter` specifically dropped their stored `val label: String`

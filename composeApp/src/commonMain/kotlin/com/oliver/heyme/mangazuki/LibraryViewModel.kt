@@ -25,8 +25,11 @@ import kotlinx.coroutines.launch
 data class ScanProgress(val seriesFound: Int, val chaptersFound: Int, val directoriesScanned: Int = 0)
 
 /** How many series [LibraryViewModel.inProgress] prefetches a resume chapter for -- "Your Page"
- * dashboard's "Jump back in" section only ever shows this many. */
-private const val JUMP_BACK_IN_COUNT = 2
+ * dashboard's "Jump back in" section never shows more than this. Must be >= the largest card
+ * count [YourPageContent] can request (2 rows x 2 columns in portrait, or up to 4 columns x 1 row
+ * in landscape, so 4) -- a series pulled into the section without a prefetched resume chapter
+ * renders as a blank slot instead of falling through to "On your shelf". */
+private const val JUMP_BACK_IN_COUNT = 4
 
 /** How many rows [LibraryViewModel.recentChapters] pulls from the DB -- the dashboard's "Fresh
  * chapters" grid shows a subset of this. */

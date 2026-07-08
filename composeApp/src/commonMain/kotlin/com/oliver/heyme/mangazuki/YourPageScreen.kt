@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -64,54 +65,77 @@ fun YourPageContent(
 ) {
     val archivo = mangaArchivo()
     val anton = mangaAnton()
-    val jumpBackIn = inProgress.take(2)
-    // Drop the ones already shown above -- "on your shelf" is the rest of what's in progress,
-    // not a second copy of "jump back in".
-    val shelf = inProgress.drop(jumpBackIn.size).take(6)
-    val fresh = recentChapters.take(6)
-    val newSince = remember { nowEpochMillis() - 24 * 60 * 60 * 1000L }
 
-    if (jumpBackIn.isEmpty() && fresh.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                stringResource(Res.string.your_page_empty_state),
-                color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-                textAlign = TextAlign.Center, modifier = Modifier.padding(48.dp),
-            )
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Portrait keeps the card's phone-era width fixed (2 columns) and grows downward with
+        // more rows instead -- there's width to spare in landscape, so that direction grows
+        // sideways with more columns per row instead of stacking further rows.
+        val isLandscape = maxWidth > maxHeight
+        val jumpBackInColumns = if (isLandscape) {
+            when {
+                maxWidth >= 1400.dp -> 4
+                maxWidth >= 900.dp -> 3
+                else -> 2
+            }
+        } else {
+            2
         }
-        return
-    }
+        val jumpBackInRows = if (isLandscape) 1 else 2
+        val jumpBackIn = inProgress.take(jumpBackInColumns * jumpBackInRows)
+        // Landscape is always a single row, so size it to the real card count rather than the
+        // column cap -- otherwise a sparse in-progress list would leave half the row as blank
+        // ChunkedGrid filler next to a couple of narrow cards. Portrait's multiple rows keep the
+        // fixed column count instead (like the shelf/fresh grids below), so card width stays
+        // constant across rows even when the last one is ragged.
+        val jumpBackInGridColumns = if (isLandscape) jumpBackIn.size else jumpBackInColumns
+        // Drop the ones already shown above -- "on your shelf" is the rest of what's in progress,
+        // not a second copy of "jump back in".
+        val shelf = inProgress.drop(jumpBackIn.size).take(6)
+        val fresh = recentChapters.take(6)
+        val newSince = remember { nowEpochMillis() - 24 * 60 * 60 * 1000L }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)) {
-        if (jumpBackIn.isNotEmpty()) {
-            item {
-                YourPageSection(stringResource(Res.string.your_page_jump_back_in_title), stringResource(Res.string.your_page_jump_back_in_subtitle), archivo, anton) {
-                    ChunkedGrid(jumpBackIn, columns = 2, spacing = 18.dp) { card ->
-                        val chapter = resumeChapters[card.id]
-                        if (chapter != null) {
-                            JumpBackInCard(card, chapter, titleLanguage, onClick = { onChapterClick(card.id, chapter.id) }, archivo, anton)
+        if (jumpBackIn.isEmpty() && fresh.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    stringResource(Res.string.your_page_empty_state),
+                    color = MangaColors.TextMuted, fontFamily = archivo, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                    textAlign = TextAlign.Center, modifier = Modifier.padding(48.dp),
+                )
+            }
+            return@BoxWithConstraints
+        }
+
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)) {
+            if (jumpBackIn.isNotEmpty()) {
+                item {
+                    YourPageSection(stringResource(Res.string.your_page_jump_back_in_title), stringResource(Res.string.your_page_jump_back_in_subtitle), archivo, anton) {
+                        ChunkedGrid(jumpBackIn, columns = jumpBackInGridColumns, spacing = 18.dp) { card ->
+                            val chapter = resumeChapters[card.id]
+                            if (chapter != null) {
+                                JumpBackInCard(card, chapter, titleLanguage, onClick = { onChapterClick(card.id, chapter.id) }, archivo, anton)
+                            }
                         }
                     }
                 }
             }
-        }
-        if (shelf.isNotEmpty()) {
-            item {
-                YourPageSection(stringResource(Res.string.your_page_shelf_title), stringResource(Res.string.your_page_shelf_subtitle), archivo, anton) {
-                    ChunkedGrid(shelf, columns = 6, spacing = 16.dp) { card ->
-                        ShelfMiniCard(card, titleLanguage, onClick = { onSeriesClick(card.id) }, archivo, anton)
+            if (shelf.isNotEmpty()) {
+                item {
+                    YourPageSection(stringResource(Res.string.your_page_shelf_title), stringResource(Res.string.your_page_shelf_subtitle), archivo, anton) {
+                        ChunkedGrid(shelf, columns = 6, spacing = 16.dp) { card ->
+                            ShelfMiniCard(card, titleLanguage, onClick = { onSeriesClick(card.id) }, archivo, anton)
+                        }
                     }
                 }
             }
-        }
-        if (fresh.isNotEmpty()) {
-            item {
-                YourPageSection(stringResource(Res.string.your_page_fresh_title), stringResource(Res.string.your_page_fresh_subtitle), archivo, anton) {
-                    ChunkedGrid(fresh, columns = 6, spacing = 16.dp) { chapter ->
-                        FreshChapterCard(
-                            chapter, titleLanguage, isNew = chapter.dateAdded >= newSince,
-                            onClick = { onChapterClick(chapter.seriesId, chapter.chapterId) }, archivo, anton,
-                        )
+            if (fresh.isNotEmpty()) {
+                item {
+                    YourPageSection(stringResource(Res.string.your_page_fresh_title), stringResource(Res.string.your_page_fresh_subtitle), archivo, anton) {
+                        ChunkedGrid(fresh, columns = 6, spacing = 16.dp) { chapter ->
+                            FreshChapterCard(
+                                chapter, titleLanguage, isNew = chapter.dateAdded >= newSince,
+                                onClick = { onChapterClick(chapter.seriesId, chapter.chapterId) }, archivo, anton,
+                            )
+                        }
                     }
                 }
             }

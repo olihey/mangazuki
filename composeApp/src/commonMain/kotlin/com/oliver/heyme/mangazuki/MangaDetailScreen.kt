@@ -468,6 +468,10 @@ private fun ChapterTile(
             // Same dim treatment as the Library shelf's covers while picking (MangaShelfGrid.kt).
             if (selectionMode && !selected) {
                 Box(Modifier.matchParentSize().background(MangaColors.Bg.copy(alpha = 0.55f)))
+            } else if (!selectionMode && chapter.completed) {
+                // Read chapters read as "done" at a glance -- a lighter scrim than the
+                // selection dim above, and skipped in selection mode so the two never stack.
+                Box(Modifier.matchParentSize().background(MangaColors.Bg.copy(alpha = 0.45f)))
             }
             Text(
                 numberValue, color = Color.White.copy(alpha = 0.92f), fontFamily = mangaAnton(), fontSize = 26.sp, lineHeight = 26.sp,

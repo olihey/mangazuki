@@ -88,10 +88,32 @@ fun YourPageContent(
         // fixed column count instead (like the shelf/fresh grids below), so card width stays
         // constant across rows even when the last one is ragged.
         val jumpBackInGridColumns = if (isLandscape) jumpBackIn.size else jumpBackInColumns
+        // Shelf/fresh covers keep the same physical size in both orientations -- landscape fits
+        // more of them per row instead of stretching each cover wider. minOf(width, height) is
+        // this device's portrait width regardless of current orientation (rotating just swaps
+        // the two), so it doubles as "the width portrait's fixed 6-column row would have" without
+        // needing a second BoxWithConstraints pass after actually rotating.
+        val coverGridSpacing = 16.dp
+        val sectionHorizontalPadding = 48.dp // YourPageSection's 24.dp padding on each side
+        val portraitColumns = 6
+        val portraitContentWidth = minOf(maxWidth, maxHeight) - sectionHorizontalPadding
+        val coverWidth = (portraitContentWidth - coverGridSpacing * (portraitColumns - 1)) / portraitColumns
+        val coverGridColumns = if (isLandscape) {
+            val landscapeContentWidth = maxWidth - sectionHorizontalPadding
+            (((landscapeContentWidth + coverGridSpacing).value) / (coverWidth + coverGridSpacing).value)
+                .toInt().coerceAtLeast(portraitColumns)
+        } else {
+            portraitColumns
+        }
+        // Portrait has the vertical room to spare (unlike Jump Back In's taller cards), so these
+        // two sections show a second row there -- landscape stays a single row since it already
+        // grows sideways via coverGridColumns instead.
+        val coverGridRows = if (isLandscape) 1 else 2
+        val coverGridCount = coverGridColumns * coverGridRows
         // Drop the ones already shown above -- "on your shelf" is the rest of what's in progress,
         // not a second copy of "jump back in".
-        val shelf = inProgress.drop(jumpBackIn.size).take(6)
-        val fresh = recentChapters.take(6)
+        val shelf = inProgress.drop(jumpBackIn.size).take(coverGridCount)
+        val fresh = recentChapters.take(coverGridCount)
         val newSince = remember { nowEpochMillis() - 24 * 60 * 60 * 1000L }
 
         if (jumpBackIn.isEmpty() && fresh.isEmpty()) {
@@ -121,7 +143,7 @@ fun YourPageContent(
             if (shelf.isNotEmpty()) {
                 item {
                     YourPageSection(stringResource(Res.string.your_page_shelf_title), stringResource(Res.string.your_page_shelf_subtitle), archivo, anton) {
-                        ChunkedGrid(shelf, columns = 6, spacing = 16.dp) { card ->
+                        ChunkedGrid(shelf, columns = coverGridColumns, spacing = coverGridSpacing) { card ->
                             ShelfMiniCard(card, titleLanguage, onClick = { onSeriesClick(card.id) }, archivo, anton)
                         }
                     }
@@ -130,7 +152,7 @@ fun YourPageContent(
             if (fresh.isNotEmpty()) {
                 item {
                     YourPageSection(stringResource(Res.string.your_page_fresh_title), stringResource(Res.string.your_page_fresh_subtitle), archivo, anton) {
-                        ChunkedGrid(fresh, columns = 6, spacing = 16.dp) { chapter ->
+                        ChunkedGrid(fresh, columns = coverGridColumns, spacing = coverGridSpacing) { chapter ->
                             FreshChapterCard(
                                 chapter, titleLanguage, isNew = chapter.dateAdded >= newSince,
                                 onClick = { onChapterClick(chapter.seriesId, chapter.chapterId) }, archivo, anton,

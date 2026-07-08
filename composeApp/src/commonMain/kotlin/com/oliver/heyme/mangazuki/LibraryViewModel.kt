@@ -32,8 +32,10 @@ data class ScanProgress(val seriesFound: Int, val chaptersFound: Int, val direct
 private const val JUMP_BACK_IN_COUNT = 4
 
 /** How many rows [LibraryViewModel.recentChapters] pulls from the DB -- the dashboard's "Fresh
- * chapters" grid shows a subset of this. */
-private const val FRESH_CHAPTERS_LIMIT = 12L
+ * chapters" grid shows a subset of this. Wide landscape windows can fit noticeably more than a
+ * portrait row's worth of covers per row (see [YourPageContent]'s `coverGridColumns`), so this
+ * needs real headroom above a single portrait row (6) rather than just matching it. */
+private const val FRESH_CHAPTERS_LIMIT = 24L
 
 /** [done]/[total] series processed by the current [MetadataEnricher.enrichPending] pass
  * (PLAN.md §9.2) — "processed" includes matched, checked-no-match, and failed alike. */

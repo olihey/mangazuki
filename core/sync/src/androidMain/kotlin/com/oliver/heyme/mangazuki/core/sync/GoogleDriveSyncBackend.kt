@@ -17,6 +17,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
@@ -37,6 +38,11 @@ private const val METADATA_ALIAS_FILE_NAME = "metadata_aliases.json"
 // re-populates it from that device's own local `reading_progress`, this time with real timestamps.
 private const val WIRE_FORMAT_VERSION = 3
 private val debugJsonPrinter = Json { prettyPrint = true }
+// Lenient (unlike debugJsonPrinter) since this only validates shape before an Import overwrites
+// Drive -- an older/newer wire version missing a since-added field should still pass, matching
+// the same forward/backward tolerance pull()/pullAliases() already get from the shared client's
+// ContentNegotiation config.
+private val debugJsonParser = Json { ignoreUnknownKeys = true }
 
 /**
  * Google Drive `appDataFolder` transport (PLAN.md §10) -- one JSON blob per synced entity, not
@@ -114,6 +120,24 @@ class GoogleDriveSyncBackend(
         pushAliases(emptyList())
     }
 
+    /** Settings' Debug section "Import" actions (PLAN.md §10) -- overwrites the Drive copy with
+     * a user-picked backup file's exact bytes, rather than re-deriving the wire file from
+     * whatever [SyncFileDto]/[AliasFileDto] would round-trip to, so what lands on Drive is
+     * byte-for-byte what was exported. Still decodes into the wire DTO first purely to validate
+     * shape -- a malformed picked file must fail loudly here rather than silently corrupting the
+     * next device's pull. */
+    suspend fun pushRawProgressJson(json: String) {
+        val token = auth.accessToken() ?: error("Google Drive sync: not signed in")
+        debugJsonParser.decodeFromString<SyncFileDto>(json)
+        upsertFileRaw(token, PROGRESS_FILE_NAME, json)
+    }
+
+    suspend fun pushRawMetadataAliasesJson(json: String) {
+        val token = auth.accessToken() ?: error("Google Drive sync: not signed in")
+        debugJsonParser.decodeFromString<AliasFileDto>(json)
+        upsertFileRaw(token, METADATA_ALIAS_FILE_NAME, json)
+    }
+
     private suspend fun fetchRawFile(token: String, fileName: String): String? {
         val fileId = findFileId(token, fileName) ?: return null
         val response = getFile(token, fileId)
@@ -161,6 +185,34 @@ class GoogleDriveSyncBackend(
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(body)
+        }
+    }
+
+    /** Raw-string counterparts of [upsertFile]/[createFile]/[updateFile] for [pushRawProgressJson]/
+     * [pushRawMetadataAliasesJson] -- a `String` body bypasses `ContentNegotiation`'s serializer
+     * (it's one of the types the plugin passes through untouched) and is sent as-is, so this
+     * uploads the picked file's exact text rather than a DTO re-encoding of it. */
+    private suspend fun upsertFileRaw(token: String, fileName: String, raw: String) {
+        val fileId = findFileId(token, fileName)
+        if (fileId == null) createFileRaw(token, fileName, raw) else updateFileRaw(token, fileId, raw)
+    }
+
+    private suspend fun createFileRaw(token: String, fileName: String, raw: String) {
+        val created = client.post(DRIVE_FILES_ENDPOINT) {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(CreateFileRequestDto(name = fileName, parents = listOf("appDataFolder")))
+        }.body<DriveFileDto>()
+        val fileId = created.id ?: error("Google Drive sync: file creation returned no id")
+        updateFileRaw(token, fileId, raw)
+    }
+
+    private suspend fun updateFileRaw(token: String, fileId: String, raw: String) {
+        client.patch("$DRIVE_UPLOAD_ENDPOINT/$fileId") {
+            parameter("uploadType", "media")
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(raw)
         }
     }
 }

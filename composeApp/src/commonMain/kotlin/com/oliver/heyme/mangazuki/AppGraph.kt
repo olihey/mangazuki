@@ -39,6 +39,20 @@ class AppGraph(
     val fetchMetadataAliasesJson: suspend () -> String? = { null },
     val clearProgressJson: suspend () -> Unit = {},
     val clearMetadataAliasesJson: suspend () -> Unit = {},
+    /** Settings' Debug section "Export"/"Import" actions (PLAN.md §10) -- both files share the
+     * same SAF plumbing (one file-save picker, one file-open-and-read picker), so a single pair
+     * of generic callbacks covers both rather than four near-identical ones. [exportJsonFile]
+     * writes `content` to a user-picked location suggested as `fileName`; [pickJsonFile] opens a
+     * picker and returns the picked file's text, or `null` if the user backed out. Callbacks for
+     * the same Android-only (SAF/`Uri`) reason [fetchProgressJson]'s pair are. */
+    val exportJsonFile: suspend (fileName: String, content: String) -> Unit = { _, _ -> },
+    val pickJsonFile: suspend () -> String? = { null },
+    /** The picked file's raw text is pushed byte-for-byte to Drive (PLAN.md §10) -- see
+     * `GoogleDriveSyncBackend.pushRawProgressJson`/`pushRawMetadataAliasesJson`. Throws if the
+     * picked file doesn't match the expected wire shape, so Settings can surface the failure
+     * rather than silently no-op like [clearProgressJson] does for a mid-flight sign-out. */
+    val importProgressJson: suspend (String) -> Unit = {},
+    val importMetadataAliasesJson: suspend (String) -> Unit = {},
     /** Whether this is a debug build (`BuildConfig.DEBUG`) -- Settings' Debug section (PLAN.md
      * §10) is dev-only, since "clear the Drive file" isn't something a released app should
      * expose. A plain value rather than a callback since it never changes at runtime, but still

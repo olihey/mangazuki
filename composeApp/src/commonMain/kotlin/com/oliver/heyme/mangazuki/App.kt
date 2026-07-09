@@ -62,6 +62,10 @@ fun App(
                     fetchMetadataAliasesJson = graph.fetchMetadataAliasesJson,
                     clearProgressJson = graph.clearProgressJson,
                     clearMetadataAliasesJson = graph.clearMetadataAliasesJson,
+                    exportJsonFile = graph.exportJsonFile,
+                    pickJsonFile = graph.pickJsonFile,
+                    importProgressJson = graph.importProgressJson,
+                    importMetadataAliasesJson = graph.importMetadataAliasesJson,
                     isDebugBuild = graph.isDebugBuild,
                 )
             }

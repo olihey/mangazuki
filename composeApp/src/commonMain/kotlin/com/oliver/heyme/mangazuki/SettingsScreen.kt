@@ -127,6 +127,10 @@ fun SettingsScreen(
     fetchMetadataAliasesJson: suspend () -> String? = { null },
     clearProgressJson: suspend () -> Unit = {},
     clearMetadataAliasesJson: suspend () -> Unit = {},
+    exportJsonFile: suspend (fileName: String, content: String) -> Unit = { _, _ -> },
+    pickJsonFile: suspend () -> String? = { null },
+    importProgressJson: suspend (String) -> Unit = {},
+    importMetadataAliasesJson: suspend (String) -> Unit = {},
     isDebugBuild: Boolean = false,
 ) {
     ImmersiveMode(enabled = true)
@@ -140,6 +144,8 @@ fun SettingsScreen(
     var showResetConfirm by remember { mutableStateOf(false) }
     var viewJsonDialog by remember { mutableStateOf<ViewJsonDialogState?>(null) }
     var clearTarget by remember { mutableStateOf<DebugFile?>(null) }
+    var importTarget by remember { mutableStateOf<PendingImport?>(null) }
+    var importError by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val titleLanguage by appPreferences.titleLanguage.collectAsState()
     val startScreen by appPreferences.startScreen.collectAsState()
@@ -272,6 +278,22 @@ fun SettingsScreen(
                             )
                             SettingsLink(stringResource(Res.string.settings_debug_clear_progress), archivo, color = DangerColor, onClick = { clearTarget = DebugFile.PROGRESS })
                             SettingsLink(stringResource(Res.string.settings_debug_clear_metadata_aliases), archivo, color = DangerColor, onClick = { clearTarget = DebugFile.METADATA_ALIASES })
+                            SettingsLink(
+                                stringResource(Res.string.settings_debug_export_progress), archivo,
+                                onClick = { coroutineScope.launch { fetchProgressJson()?.let { exportJsonFile(DebugFile.PROGRESS.fileName, it) } } },
+                            )
+                            SettingsLink(
+                                stringResource(Res.string.settings_debug_export_metadata_aliases), archivo,
+                                onClick = { coroutineScope.launch { fetchMetadataAliasesJson()?.let { exportJsonFile(DebugFile.METADATA_ALIASES.fileName, it) } } },
+                            )
+                            SettingsLink(
+                                stringResource(Res.string.settings_debug_import_progress), archivo,
+                                onClick = { coroutineScope.launch { pickJsonFile()?.let { importTarget = PendingImport(DebugFile.PROGRESS, it) } } },
+                            )
+                            SettingsLink(
+                                stringResource(Res.string.settings_debug_import_metadata_aliases), archivo,
+                                onClick = { coroutineScope.launch { pickJsonFile()?.let { importTarget = PendingImport(DebugFile.METADATA_ALIASES, it) } } },
+                            )
                         }
                     }
                 }
@@ -364,10 +386,56 @@ fun SettingsScreen(
             },
         )
     }
+
+    importTarget?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { importTarget = null },
+            title = { Text(stringResource(Res.string.settings_debug_import_confirm_title, pending.file.fileName)) },
+            text = {
+                Text(stringResource(Res.string.settings_debug_import_confirm_body))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        importTarget = null
+                        coroutineScope.launch {
+                            runCatching {
+                                when (pending.file) {
+                                    DebugFile.PROGRESS -> importProgressJson(pending.json)
+                                    DebugFile.METADATA_ALIASES -> importMetadataAliasesJson(pending.json)
+                                }
+                            }.onFailure { importError = it.message ?: pending.file.fileName }
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(Res.string.settings_debug_import_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { importTarget = null }) { Text(stringResource(Res.string.action_cancel)) }
+            },
+        )
+    }
+
+    importError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { importError = null },
+            title = { Text(stringResource(Res.string.settings_debug_import_failed_title)) },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { importError = null }) { Text(stringResource(Res.string.action_close)) }
+            },
+        )
+    }
 }
 
-/** Settings' Debug section (PLAN.md §10) -- which of the two `appDataFolder` files a view/clear
- * action targets. */
+/** A file picked for Import (PLAN.md §10), staged behind a confirmation dialog since pushing it
+ * overwrites the Drive copy other devices merge against -- same "don't fire on the first tap"
+ * caution as [DebugFile]'s own Clear actions, just carrying the already-read text along so
+ * confirming doesn't need to re-open the picker. */
+private data class PendingImport(val file: DebugFile, val json: String)
+
+/** Settings' Debug section (PLAN.md §10) -- which of the two `appDataFolder` files a
+ * view/clear/export/import action targets. */
 private enum class DebugFile(val fileName: String) {
     PROGRESS("progress.json"),
     METADATA_ALIASES("metadata_aliases.json"),

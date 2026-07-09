@@ -204,7 +204,7 @@
     <string name="settings_sync_not_synced_yet">Not synced yet</string>
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_section_debug">Debug</string>
-    <string name="settings_section_debug_desc">Inspect or clear the raw files this device syncs through Google Drive.</string>
+    <string name="settings_section_debug_desc">Inspect, clear, export, or import the raw files this device syncs through Google Drive.</string>
     <string name="settings_debug_view_progress">View progress.json</string>
     <string name="settings_debug_view_metadata_aliases">View metadata_aliases.json</string>
     <string name="settings_debug_clear_progress">Clear progress.json</string>
@@ -219,4 +219,12 @@
     <string name="settings_debug_clear_confirm_title">Clear %1$s?</string>
     <string name="settings_debug_clear_confirm_body">Overwrites the Drive copy with an empty file. This device's own local data isn't touched and will re-upload on the next sync, but other devices lose their contribution to this file until they next sync too.</string>
     <string name="settings_debug_clear_action">Clear</string>
+    <string name="settings_debug_export_progress">Export progress.json</string>
+    <string name="settings_debug_export_metadata_aliases">Export metadata_aliases.json</string>
+    <string name="settings_debug_import_progress">Import progress.json</string>
+    <string name="settings_debug_import_metadata_aliases">Import metadata_aliases.json</string>
+    <string name="settings_debug_import_confirm_title">Import %1$s?</string>
+    <string name="settings_debug_import_confirm_body">Overwrites the Drive copy with the picked file's contents. Other devices will merge against this file on their next sync.</string>
+    <string name="settings_debug_import_action">Import</string>
+    <string name="settings_debug_import_failed_title">Import failed</string>
 </resources>

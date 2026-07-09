@@ -25,12 +25,15 @@ import coil3.disk.DiskCache
 import coil3.key.Keyer
 import coil3.request.Options
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import okio.Path.Companion.toOkioPath
+import kotlin.coroutines.resume
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -51,6 +54,15 @@ class MainActivity : ComponentActivity() {
     private lateinit var authManager: GoogleAuthManager
     private lateinit var repository: LibraryRepository
     private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    // Settings' Debug section Export/Import (PLAN.md §10) -- one save picker and one
+    // open-and-read picker shared by both progress.json/metadata_aliases.json, bridged into
+    // AppGraph's suspend callbacks via a single in-flight continuation each (only one of these
+    // dialogs can be on screen at a time, same as the other single-purpose launchers here).
+    private lateinit var exportJsonLauncher: ActivityResultLauncher<String>
+    private lateinit var importJsonLauncher: ActivityResultLauncher<Array<String>>
+    private var pendingExportUri: CancellableContinuation<Uri?>? = null
+    private var pendingImportUri: CancellableContinuation<Uri?>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -142,6 +154,26 @@ class MainActivity : ComponentActivity() {
             clearMetadataAliasesJson = {
                 if (authManager.isSignedIn()) GoogleDriveSyncBackend(authManager).clearMetadataAliases()
             },
+            exportJsonFile = { fileName, content ->
+                val uri = suspendCancellableCoroutine<Uri?> { cont ->
+                    pendingExportUri = cont
+                    exportJsonLauncher.launch(fileName)
+                }
+                uri?.let { u -> contentResolver.openOutputStream(u)?.use { it.write(content.toByteArray()) } }
+            },
+            pickJsonFile = {
+                val uri = suspendCancellableCoroutine<Uri?> { cont ->
+                    pendingImportUri = cont
+                    importJsonLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                }
+                uri?.let { u -> runCatching { contentResolver.openInputStream(u)?.bufferedReader()?.use { it.readText() } }.getOrNull() }
+            },
+            importProgressJson = { json ->
+                if (authManager.isSignedIn()) GoogleDriveSyncBackend(authManager).pushRawProgressJson(json)
+            },
+            importMetadataAliasesJson = { json ->
+                if (authManager.isSignedIn()) GoogleDriveSyncBackend(authManager).pushRawMetadataAliasesJson(json)
+            },
             isDebugBuild = BuildConfig.DEBUG,
         )
 
@@ -155,6 +187,16 @@ class MainActivity : ComponentActivity() {
                 val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Library"
                 viewModel.onFolderPicked(uri.toString(), name)
             }
+        }
+
+        exportJsonLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            pendingExportUri?.resume(uri)
+            pendingExportUri = null
+        }
+
+        importJsonLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            pendingImportUri?.resume(uri)
+            pendingImportUri = null
         }
 
         signIn = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->

@@ -204,7 +204,7 @@
     <string name="settings_sync_not_synced_yet">Noch nicht synchronisiert</string>
     <string name="settings_sign_out">Abmelden</string>
     <string name="settings_section_debug">Debug</string>
-    <string name="settings_section_debug_desc">Die Rohdateien einsehen oder löschen, die dieses Gerät über Google Drive synchronisiert.</string>
+    <string name="settings_section_debug_desc">Die Rohdateien einsehen, löschen, exportieren oder importieren, die dieses Gerät über Google Drive synchronisiert.</string>
     <string name="settings_debug_view_progress">progress.json anzeigen</string>
     <string name="settings_debug_view_metadata_aliases">metadata_aliases.json anzeigen</string>
     <string name="settings_debug_clear_progress">progress.json löschen</string>
@@ -219,4 +219,12 @@
     <string name="settings_debug_clear_confirm_title">%1$s löschen?</string>
     <string name="settings_debug_clear_confirm_body">Überschreibt die Kopie auf Drive mit einer leeren Datei. Die lokalen Daten dieses Geräts bleiben unberührt und werden bei der nächsten Synchronisierung wieder hochgeladen, aber andere Geräte verlieren ihren Beitrag zu dieser Datei, bis sie das nächste Mal synchronisieren.</string>
     <string name="settings_debug_clear_action">Löschen</string>
+    <string name="settings_debug_export_progress">progress.json exportieren</string>
+    <string name="settings_debug_export_metadata_aliases">metadata_aliases.json exportieren</string>
+    <string name="settings_debug_import_progress">progress.json importieren</string>
+    <string name="settings_debug_import_metadata_aliases">metadata_aliases.json importieren</string>
+    <string name="settings_debug_import_confirm_title">%1$s importieren?</string>
+    <string name="settings_debug_import_confirm_body">Überschreibt die Kopie auf Drive mit dem Inhalt der ausgewählten Datei. Andere Geräte gleichen sich bei ihrer nächsten Synchronisierung mit dieser Datei ab.</string>
+    <string name="settings_debug_import_action">Importieren</string>
+    <string name="settings_debug_import_failed_title">Import fehlgeschlagen</string>
 </resources>

@@ -1726,6 +1726,23 @@ next sync from any device just re-populates it from local data). Gated on `AppGr
 (`MainActivity` supplies `BuildConfig.DEBUG`) *and* being signed in, so it never reaches a release
 build.
 
+**Debug section Export/Import (2026-07-09, dev-build only).** Four more actions alongside
+view/clear: Export writes a file's exact `fetchRaw*`-fetched text to a user-picked location via
+SAF (`ActivityResultContracts.CreateDocument`); Import opens a SAF picker
+(`ActivityResultContracts.OpenDocument`), then pushes the picked text byte-for-byte to Drive via
+new `GoogleDriveSyncBackend.pushRawProgressJson`/`pushRawMetadataAliasesJson` — not a re-encode
+through `SeriesRecordDto`/`AliasRecordDto`, so the Drive copy after Import is exactly the picked
+file's bytes. Both methods still decode into the wire DTO first purely to validate shape before
+overwriting, and Import is staged behind an in-app confirmation dialog once the file is picked
+(same "don't fire on the first tap" caution as Clear), since it overwrites Drive state other
+devices merge against. `AppGraph` exposes this as two generic callbacks
+(`exportJsonFile(fileName, content)`, `pickJsonFile(): String?`) rather than four
+per-file ones, since the SAF plumbing itself doesn't care which file it's saving/opening — only
+`importProgressJson`/`importMetadataAliasesJson` are file-specific. One export/import launcher
+pair is registered in `MainActivity` and shared by both files, bridged from the
+`ActivityResultLauncher` callback style into `AppGraph`'s suspend-callback style via a single
+in-flight `CancellableContinuation<Uri?>` each (only one such dialog can be on screen at a time).
+
 **`progress.json` v2 — one record per series, not per chapter (2026-07-05).** v1 wrote one
 `SyncRecordDto` object per chapter (`provider`/`externalId`/`normalizedTitle`/`volume`/`number`/
 `completed`/`lastPageIndex`/`updatedAt`/`deviceId` each), which scales linearly with chapter

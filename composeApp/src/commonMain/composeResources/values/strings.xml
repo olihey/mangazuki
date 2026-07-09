@@ -60,7 +60,7 @@
     <string name="selection_action_done">Done</string>
 
     <!-- MangaShelfGrid.kt -->
-    <string name="shelf_add_source">+ Set source</string>
+    <string name="shelf_add_source">Set source</string>
     <string name="shelf_empty_no_source">No library source configured yet.</string>
     <string name="shelf_empty_no_series">No series found in this library yet.</string>
     <string name="masthead_selected_label">Selected</string>

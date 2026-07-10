@@ -12,6 +12,12 @@ class DisplayNameCleanupTest {
     }
 
     @Test
+    fun strips_pdf_extension_the_same_way() {
+        assertEquals("Chaper 2", cleanDisplayName("chaper_2.pdf"))
+        assertEquals("Vol. 3", cleanDisplayName("Vol. 3.pdf"))
+    }
+
+    @Test
     fun preserves_a_dot_that_is_not_the_extension() {
         // "Vol. 2.cbz" — only the trailing ".cbz" is an extension; the one after "Vol" isn't.
         assertEquals("Vol. 2", cleanDisplayName("Vol. 2.cbz"))

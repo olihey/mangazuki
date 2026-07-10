@@ -439,6 +439,7 @@ class LibraryRepository(db: MangaDatabase) {
         locator == null -> null
         format == "CBZ" -> "cbz:$locator"
         format == "IMAGE_DIR" -> "imgdir:$locator"
+        format == "PDF" -> "pdf:$locator"
         else -> null
     }
 

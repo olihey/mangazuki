@@ -127,6 +127,7 @@ private fun ReaderHost(
             graph.repository, graph.source, chapter, seriesDirection, title, nextChapter,
             graph.readerPreferences, graph.appPreferences.deviceId,
             requestSync = graph.requestSync,
+            pdfCacheDir = graph.pdfCacheDir,
         )
     }
     ReaderScreen(viewModel, onBack, onNavigateToChapter)

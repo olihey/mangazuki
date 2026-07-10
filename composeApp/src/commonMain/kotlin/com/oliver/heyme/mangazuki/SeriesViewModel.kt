@@ -198,8 +198,13 @@ class SeriesViewModel(
     }
 
     /** Same PageProvider the reader uses, just to read `.pageCount` — cheap (entry names/dir
-     * listing only, no image bytes) and reuses the existing CBZ/image-dir abstraction directly. */
+     * listing only, no image bytes) and reuses the existing CBZ/image-dir abstraction directly.
+     * PDFs are deliberately excluded: counting a PDF's pages means materializing the whole file
+     * locally first (PLAN.md §16) — a full download on SMB/OneDrive, nothing like the KB-sized
+     * central-directory range reads a CBZ costs here. The reader persists a PDF's count on its
+     * first open instead (see `ReaderViewModel`). */
     private suspend fun countPages(chapter: ChapterCard) {
+        if (chapter.format == ChapterFormat.PDF.name) return
         val domainChapter = DomainChapter(
             id = chapter.id,
             seriesId = chapter.seriesId,

@@ -17,6 +17,9 @@ class AppGraph(
     /** Shared with [MetadataEnricher] — Fix Metadata (§9.1) downloads covers the same way. */
     val coverClient: HttpClient,
     val coversDir: String,
+    /** Where PDF chapters are materialized to a local seekable file before Pdfium opens them
+     * (PLAN.md §16) — under the platform cache dir, so the OS may reclaim it under pressure. */
+    val pdfCacheDir: String,
     /** Google Drive sign-in status (PLAN.md §10) — the actual sign-in/sign-out actions are
      * plain callbacks passed into [App], not held here, since triggering them needs an Android
      * `Activity`/`Intent` (the same reason `onPickFolder` is a callback, not a stored field). */

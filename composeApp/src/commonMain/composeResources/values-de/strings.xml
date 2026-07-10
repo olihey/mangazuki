@@ -142,6 +142,8 @@
 
     <!-- ReaderScreen.kt -->
     <string name="reader_page_of">Seite %1$d von %2$d</string>
+    <string name="reader_preparing">Kapitel wird vorbereitet…</string>
+    <string name="reader_preparing_percent">Kapitel wird vorbereitet… %1$d%%</string>
     <string name="reader_tap_zone_toggle_menu">Menü ein-/ausblenden</string>
     <string name="reader_tap_zone_next_page">Nächste Seite</string>
     <string name="reader_tap_zone_previous">Zurück</string>

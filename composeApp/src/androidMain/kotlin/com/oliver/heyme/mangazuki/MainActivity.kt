@@ -81,6 +81,9 @@ class MainActivity : ComponentActivity() {
         val database = createMangaDatabase(DatabaseDriverFactory(applicationContext).create())
         repository = LibraryRepository(database)
         val coversDir = applicationContext.filesDir.resolve("covers").absolutePath
+        // PDF materialization cache (PLAN.md §16) -- under cacheDir (not filesDir) so the OS
+        // can reclaim it; PdfFileCache re-downloads on demand and does its own LRU capping.
+        val pdfCacheDir = applicationContext.cacheDir.resolve("pdf").absolutePath
 
         // Built eagerly (not inside setSafe's lazy factory) so MainActivity can keep a direct
         // reference — Settings -> Reset library needs to clear it, since series/chapter IDs are
@@ -89,9 +92,9 @@ class MainActivity : ComponentActivity() {
         val imageLoader = ImageLoader.Builder(applicationContext)
             .components {
                 add(Keyer<MangaCover> { cover, _: Options -> cover.cacheKey })
-                add(CoverFetcher.Factory(source, repository, coversDir))
+                add(CoverFetcher.Factory(source, repository, coversDir, pdfCacheDir))
                 add(Keyer<MangaPage> { page, _: Options -> "${page.model}#${page.index}" })
-                add(PageFetcher.Factory(source))
+                add(PageFetcher.Factory(source, pdfCacheDir))
             }
             // Explicit (rather than relying on Coil's default) so covers/pages extracted
             // on demand from CBZ/folders are only ever extracted once and survive restarts.
@@ -136,7 +139,7 @@ class MainActivity : ComponentActivity() {
 
         val graph = AppGraph(
             repository, source, viewModel, readerPrefs, appPrefs,
-            metadataProviders, enricher, coverClient, coversDir, syncState,
+            metadataProviders, enricher, coverClient, coversDir, pdfCacheDir, syncState,
             requestSync = syncScheduler::requestSync,
             onBackgroundSyncEnabledChanged = { enabled ->
                 appPrefs.setBackgroundSyncEnabled(enabled)

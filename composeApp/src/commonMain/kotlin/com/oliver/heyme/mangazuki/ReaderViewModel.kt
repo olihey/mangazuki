@@ -50,6 +50,10 @@ fun buildPageUnits(pageCount: Int, wideFlags: List<Boolean>, pairPortrait: Boole
     return units
 }
 
+/** A PDF chapter's one-time local materialization (PLAN.md §16) while it's in flight --
+ * [totalBytes] null means the size wasn't known at scan time (indeterminate progress). */
+data class PdfPrepProgress(val bytesCopied: Long, val totalBytes: Long?)
+
 /** The pager only knows "page N of a chapter" (PLAN.md §8); loading a bitmap per page is
  * delegated to Coil ([MangaPage]/`PageFetcher`) for its caching/prefetch, while [PageProvider]
  * supplies the authoritative page count and per-page aspect ratio for spread pairing. */
@@ -64,9 +68,16 @@ class ReaderViewModel(
     private val deviceId: String,
     /** Debounced cloud-sync trigger (PLAN.md §10) — see [AppGraph.requestSync]. */
     private val requestSync: () -> Unit = {},
+    /** Where PDF chapters are materialized to a seekable local file (PLAN.md §16) — see
+     * [AppGraph.pdfCacheDir]. Null only in tests/previews that never open a PDF. */
+    private val pdfCacheDir: String? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
-    val pageModel: String = if (chapter.format == "CBZ") "cbz:${chapter.locator}" else "imgdir:${chapter.locator}"
+    val pageModel: String = when (chapter.format) {
+        ChapterFormat.CBZ.name -> "cbz:${chapter.locator}"
+        ChapterFormat.PDF.name -> "pdf:${chapter.locator}"
+        else -> "imgdir:${chapter.locator}"
+    }
 
     val invertTapZones: Boolean = prefs.invertTapZones
 
@@ -129,6 +140,12 @@ class ReaderViewModel(
         _showGestureHelp.value = false
     }
 
+    /** Non-null while a PDF chapter is being copied to local storage before Pdfium can open it
+     * (PLAN.md §16) — the loading screen shows it as "Preparing chapter… NN%". Only ever fires
+     * for PDFs on a cache miss; a local/cached chapter never leaves null. */
+    private val _pdfPrepProgress = MutableStateFlow<PdfPrepProgress?>(null)
+    val pdfPrepProgress: StateFlow<PdfPrepProgress?> = _pdfPrepProgress
+
     init {
         scope.launch {
             val domainChapter = DomainChapter(
@@ -144,13 +161,32 @@ class ReaderViewModel(
                 size = chapter.size,
                 dateAdded = 0L,
             )
-            val provider = pageProviderFor(domainChapter, source)
-            val count = provider.pageCount
-            _pageCount.value = count
-            val sizes = (0 until count).map { i -> provider.pageSize(i) }
-            _wideFlags.value = sizes.map { it.width > it.height }
-            _pageAspectRatios.value = sizes.map { it.width.toFloat() / it.height.toFloat() }
-            provider.close()
+            // runCatching: PDF materialization adds real failure modes the other formats don't
+            // have (share unreachable mid-download, password-protected file) -- log and leave
+            // the loading state rather than crash the whole Activity's Main-dispatcher scope.
+            runCatching {
+                val provider = try {
+                    pageProviderFor(domainChapter, source, pdfCacheDir) { copied, total ->
+                        _pdfPrepProgress.value = PdfPrepProgress(copied, total)
+                    }
+                } finally {
+                    _pdfPrepProgress.value = null
+                }
+                val count = provider.pageCount
+                _pageCount.value = count
+                // PDFs skip the series screen's lazy page-count probe (counting means a full
+                // download there, PLAN.md §16) -- persist the count on first open instead, so
+                // the read-percentage overlay works from then on.
+                if (chapter.pageCount == null && count > 0) {
+                    repository.setChapterPageCounts(listOf(chapter.id to count))
+                }
+                val sizes = (0 until count).map { i -> provider.pageSize(i) }
+                _wideFlags.value = sizes.map { it.width > it.height }
+                _pageAspectRatios.value = sizes.map { it.width.toFloat() / it.height.toFloat() }
+                provider.close()
+            }.onFailure { t ->
+                println("ReaderViewModel: failed to open ${chapter.displayName}: $t")
+            }
         }
     }
 

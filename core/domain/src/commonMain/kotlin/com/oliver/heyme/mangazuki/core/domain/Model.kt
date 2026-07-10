@@ -1,7 +1,7 @@
 package com.oliver.heyme.mangazuki.core.domain
 
-/** Chapter container format. PDF reserved but not built (PLAN.md §11, §16). */
-enum class ChapterFormat { IMAGE_DIR, CBZ /*, PDF */ }
+/** Chapter container format (PLAN.md §11, §16). */
+enum class ChapterFormat { IMAGE_DIR, CBZ, PDF }
 
 /** Reading modes — manga defaults to PAGED_RTL; direction flows through the pager. */
 enum class ReadingMode { PAGED_LTR, PAGED_RTL, VERTICAL_PAGED, VERTICAL_CONTINUOUS }

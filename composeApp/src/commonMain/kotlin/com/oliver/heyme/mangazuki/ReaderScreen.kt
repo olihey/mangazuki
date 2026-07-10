@@ -118,8 +118,20 @@ fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToCha
     // Wait for both the page count AND every page's aspect ratio before building the pager,
     // so spread pairing (which needs the full picture) never has to reshuffle mid-read.
     if (pageCount <= 0 || wideFlags.size < pageCount || pageAspectRatios.size < pageCount) {
+        val pdfPrep by viewModel.pdfPrepProgress.collectAsState()
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                CircularProgressIndicator()
+                // A PDF chapter's one-time local copy (PLAN.md §16) -- download-sized on remote
+                // sources, so it gets a visible progress line; everything else loads fast enough
+                // that the bare spinner suffices.
+                pdfPrep?.let { prep ->
+                    val label = prep.totalBytes?.takeIf { it > 0 }
+                        ?.let { total -> stringResource(Res.string.reader_preparing_percent, (prep.bytesCopied * 100 / total).toInt()) }
+                        ?: stringResource(Res.string.reader_preparing)
+                    Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
         return
     }

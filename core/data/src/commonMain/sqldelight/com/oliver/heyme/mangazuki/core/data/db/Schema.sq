@@ -41,7 +41,7 @@ CREATE TABLE chapter (
   series_id    TEXT NOT NULL,
   source_id    TEXT NOT NULL,
   locator      TEXT NOT NULL,
-  format       TEXT NOT NULL,            -- IMAGE_DIR | CBZ (PDF reserved; TEXT = no migration)
+  format       TEXT NOT NULL,            -- IMAGE_DIR | CBZ | PDF (TEXT = adding PDF needed no migration)
   display_name TEXT NOT NULL,
   volume       REAL,                     -- from the PARSER (null -> flat list)
   number       REAL,                     -- from the PARSER; supports 12.5

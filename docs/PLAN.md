@@ -9,7 +9,7 @@ This document reflects every decision settled so far.
 > **Decisions locked in**
 > - **Framework:** Kotlin Multiplatform + Compose Multiplatform (shared UI + logic)
 > - **Database:** SQLDelight
-> - **Formats now:** image folders + CBZ. **PDF deferred** (one-implementation drop-in, see §16)
+> - **Formats now:** image folders + CBZ + PDF (added 2026-07-10 via Pdfium, see §16)
 > - **Metadata:** AniList only, **no API key needed**, series-level data only
 > - **Chapters & volumes:** come from the **files** (the parser), never the API
 > - **"Newly added chapters":** a **local-only** feed from the DB — no upstream polling
@@ -58,7 +58,7 @@ This document reflects every decision settled so far.
 | ZIP / CBZ | multiplatform zip over `kotlinx-io` / Okio | CBZ = sorted ZIP; stream entries |
 | Adaptive layout | `material3.adaptive` + `material3-window-size-class` | `GridCells.Adaptive`, WindowSizeClass |
 | Navigation | CMP Navigation (`navigation-compose`) | Library → series push/pop |
-| PDF | *(deferred)* Pdfium (`kdroidFilter/ComposePdf`) | Not built now; planned engine when added |
+| PDF | Pdfium via `io.legere:pdfiumandroid` 1.0.35 (Android; iOS via PDFKit/cinterop at bring-up) | Built 2026-07-10 — see §16 for the engine decision |
 | Settings | multiplatform-settings or DataStore-KMP | Viewer prefs, tap-zone config, defaults |
 
 ---
@@ -148,7 +148,7 @@ CREATE TABLE chapter (
   series_id    TEXT NOT NULL,
   source_id    TEXT NOT NULL,
   locator      TEXT NOT NULL,
-  format       TEXT NOT NULL,      -- IMAGE_DIR | CBZ  (PDF reserved; TEXT = no migration)
+  format       TEXT NOT NULL,      -- IMAGE_DIR | CBZ | PDF  (TEXT = adding PDF needed no migration)
   display_name TEXT NOT NULL,
   volume       REAL,               -- from the PARSER (null → flat chapter list)
   number       REAL,               -- from the PARSER; supports 12.5
@@ -735,8 +735,8 @@ interface PageProvider {
 }
 class ImageDirPageProvider(...) : PageProvider
 class CbzPageProvider(...)      : PageProvider
-// class PdfPageProvider(...)   : PageProvider   // ← deferred; the ONLY new file PDF needs
-fun pageProviderFor(c: Chapter) = when (c.format) { Format.IMAGE_DIR -> ImageDirPageProvider(c); Format.CBZ -> CbzPageProvider(c) }
+class PdfPageProvider(...)      : PageProvider   // ← Pdfium over a locally materialized copy (§16)
+fun pageProviderFor(c: Chapter) = when (c.format) { Format.IMAGE_DIR -> ...; Format.CBZ -> ...; Format.PDF -> ... }
 ```
 
 **Reading modes** (global default + per-series override): `PAGED_LTR`, `PAGED_RTL`
@@ -1399,7 +1399,8 @@ unmatched series still sync on normalized title.
     (Resolved for OneDrive without any temp-copy shim: Graph's pre-authenticated download
     URLs honor HTTP `Range`, so `OneDriveMangaSource` declares `RANGE_READ` and rides §6.2's
     `RangedBacking` path directly — see §6.3.)
-- **PDF:** *deferred* — see §16.
+- **PDF:** built (2026-07-10) — Pdfium over a locally materialized copy, since a seekable fd is
+  non-negotiable for Pdfium regardless of source capabilities; see §16 for the full design.
 
 ---
 
@@ -1489,7 +1490,7 @@ UI smoke tests (Compose) come later and stay thin; the logic tests above carry t
 | **4 — Cloud source** | ~~Add OneDrive~~ Add SMB (§6.1) to *validate the abstraction* — OneDrive turned out to be a dead end (Microsoft disables SAF root exposure for personal accounts); responsive + settings polish | A second source works without changing scanner/reader — **done for SMB**, see §6.1 |
 | **5 — Read-status sync** | `SyncBackend` over the user's cloud; device-independent keys; LWW merge | Sign-in + background sync verified on-device — **two-device convergence still unverified**, see below |
 
-*PDF slots in after Phase 2 whenever wanted (§15 → see §16); it blocks nothing.*
+*PDF slotted in 2026-07-10 (§16) — as predicted, it blocked nothing.*
 
 **Phase 2 status: done.** `ImageDirPageProvider`/`CbzPageProvider` (Android), series screen
 (chapters grouped by volume, Continue action), reader screen (RTL-aware `HorizontalPager`,
@@ -1860,14 +1861,48 @@ app (no scan, no mark-as-read, no sign-in) advanced "Last synced" on its own.
 
 ## 16. Deferred extensions (designed-for, not built)
 
-### PDF — exact slot-in recipe
+### PDF — built (2026-07-10)
+The original slot-in recipe below was executed mostly as written; deltas and decisions:
+
+- **Engine: `io.legere:pdfiumandroid` 1.0.35 (Android-only), behind the existing
+  `pageProviderFor` expect/actual seam** — iOS will use PDFKit or Pdfium-via-cinterop at
+  bring-up; the split lives entirely inside the platform actuals. The tech-stack table's
+  penciled-in KMP engine (`kdroidFilter/ComposePdf` / `dev.nucleusframework:pdfium`) was
+  rejected: it requires Kotlin 2.3.20+ (repo is on 2.1.21 — its 2.3-metadata klibs are
+  unreadable by our compiler) and its wrapper code is unlicensed as of 2026-07. The same
+  Kotlin ceiling pins `pdfiumandroid` to the 1.x line: 2.0+ is compiled with Kotlin 2.3.
+- **Materialize-then-open (§11's pattern, mandatory here):** Pdfium needs a seekable fd, so
+  `PdfFileCache` (core:reader androidMain) copies the PDF to `cacheDir/pdf/<chapterId>.pdf`
+  first — a real download on SMB/OneDrive, a one-time local copy on SAF (uniformity over a
+  SAF-only fd fast path). Size-capped (1 GiB) with oldest-access eviction; validity check is
+  size-match against `chapter.size`. Copies report progress into the reader's loading screen
+  ("Preparing chapter… NN%", `ReaderViewModel.pdfPrepProgress`), and are mutex-serialized per
+  file so the reader probe and a Coil cover fetch of the same chapter await one download.
+- **The recipe's "no UI changes" claim was optimistic — one seam leak found and accepted:**
+  the viewer's actual pixels flow through Coil (`PageFetcher`), which expects *encoded image
+  bytes*, but Pdfium rasterizes straight to a Bitmap. So PDF pages return Coil
+  `ImageFetchResult` bitmaps (memory cache only — re-encoding to reach the disk cache is a
+  deferred optimization) via a `pdf:` model scheme + `PdfProviderCache` (the `CbzArchiveCache`
+  sibling), and covers render page 0 JPEG-encoded (`CoverFetcher`) so they keep the existing
+  bytes path (Coil disk cache + series-cover persistence). `LibraryRepository.coverModel`
+  gained the `pdf:` scheme.
+- **Page counts:** the series screen's lazy `countPages` probe *skips* PDFs — counting means
+  materializing the whole file (nothing like a CBZ's KB-sized central-directory range reads).
+  The reader persists the count on first open instead (`setChapterPageCounts`).
+- **Title metadata: filenames only.** PDF Info-dict titles are unreliable in manga scans;
+  `FilenameParser` already handled `.pdf` names. The extension point if that changes:
+  `pdfiumandroid` exposes `PdfDocumentKt.getDocumentMeta()` (title/author) — a display-name
+  override analogous to ComicInfo `<Title>` could hang off that in the scanner, but would cost
+  a full materialization per chapter at scan time on remote sources, so it stays off.
+- **Out of scope:** password-protected PDFs (fail with Pdfium's `PdfPasswordException`, caught
+  by the reader's load guard).
+
+Original recipe, for the record:
 1. Add the dependency (Pdfium CMP lib, or `expect/actual` platform renderers).
 2. Add `PdfPageProvider : PageProvider`.
 3. Add `Format.PDF` + its branch in `pageProviderFor(...)`.
 4. Tag `*.pdf` in the scanner.
-
-No DB migration (`format` is `TEXT`), no UI changes (viewer only knows `PageProvider`),
-no source changes. If adding PDF needs the reader or DB to change, a seam leaked.
+No DB migration (`format` is `TEXT`) — that part held. No source changes — that held too.
 
 ### Other deferred items
 - **iOS bring-up** — blocked on a Mac + Xcode + CI runner. When unblocked: fill the iOS

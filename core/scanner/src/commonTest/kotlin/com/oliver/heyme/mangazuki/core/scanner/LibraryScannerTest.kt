@@ -83,6 +83,40 @@ class LibraryScannerTest {
     }
 
     @Test
+    fun pdf_files_become_chapters_alongside_cbz_and_image_dirs() = runTest {
+        // PLAN.md §16: a .pdf inside a series folder is a chapter like a .cbz -- same builder,
+        // just format PDF and never a ComicInfo.xml sniff (PDFs have no such sidecar).
+        val rootTree = mapOf(
+            "/root" to listOf(dir("/mix", "Mixed Series")),
+            "/mix" to listOf(file("/mix/c1", "chaper_1.cbz"), file("/mix/c2", "chaper_2.pdf")),
+        )
+        val result = LibraryScanner(FakeSource(rootTree)).scan("/root", now = 1L).toList()
+
+        val chapters = result.single().chapters
+        assertEquals(2, chapters.size, "cbz and pdf files in one folder are both chapters")
+        val pdf = chapters.first { it.format == ChapterFormat.PDF }
+        assertEquals(2.0, pdf.number)
+        assertEquals("Chaper 2", pdf.displayName, "the .pdf extension is stripped for display")
+        assertNull(pdf.pageCount, "pdf page count is deferred, same as cbz")
+        assertEquals(ChapterFormat.CBZ, chapters.first { it.number == 1.0 }.format)
+    }
+
+    @Test
+    fun a_loose_pdf_directly_in_the_root_becomes_its_own_series() = runTest {
+        val rootTree = mapOf(
+            "/root" to listOf(file("/root/loose.pdf", "loose_ch1.pdf")),
+        )
+        val result = LibraryScanner(FakeSource(rootTree)).scan("/root", now = 1L).toList()
+
+        // Series title falls back to the filename minus extension -- the ComicInfo.xml grouping
+        // path never applies to a PDF, so this is its only identity (PLAN.md §16).
+        val loose = result.single()
+        assertEquals("loose_ch1", loose.series.title)
+        assertEquals(ChapterFormat.PDF, loose.chapters.single().format)
+        assertEquals("Loose ch1", loose.chapters.single().displayName)
+    }
+
+    @Test
     fun deterministic_ids_are_stable_across_scans() = runTest {
         val scanner = LibraryScanner(FakeSource(tree))
         val a = scanner.scan("/root", now = 1L).toList()

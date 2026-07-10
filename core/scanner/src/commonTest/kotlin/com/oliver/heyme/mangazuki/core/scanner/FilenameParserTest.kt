@@ -31,6 +31,8 @@ class FilenameParserTest {
         // Real-world cases from a 12k-chapter library (see docs/SPIKES.md):
         Case("chaper_9.cbz", null, 9.0),            // misspelled "chapter" + underscore
         Case("chaper_18.5.cbz", null, 18.5),
+        Case("chaper_7.pdf", null, 7.0),            // .pdf was in the extension regex from day one (PLAN.md §16)
+        Case("Berserk v03.pdf", 3.0, null),
         Case("Vol. 2.cbz", 2.0, null),              // volume-only file: no chapter number
         Case("Toradora! v10 (2022) (Digital) (LuCaZ).cbz", 10.0, null),
         // Japanese title with a latin chapter token — title parsing is best-effort,

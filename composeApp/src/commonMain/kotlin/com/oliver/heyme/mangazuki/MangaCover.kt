@@ -3,7 +3,8 @@ package com.oliver.heyme.mangazuki
 /**
  * Dedicated Coil model for series covers. Using a custom type (not a String) bypasses Coil's
  * built-in String→Uri mapper, so the platform CoverFetcher.Factory actually receives it.
- * [model] is the scheme-tagged locator, e.g. "cbz:content://…" or "imgdir:content://…".
+ * [model] is the scheme-tagged locator, e.g. "cbz:content://…", "imgdir:content://…", or
+ * "pdf:content://…".
  *
  * [seriesId] is set only at the library grid's series-cover call site (PLAN.md §9.4) — when
  * non-null, a live-extracted [model] gets promoted to a permanent `cover_path` after the first

@@ -38,6 +38,13 @@ okhttp = "4.12.0"
 # than hand-rolling PKCE/state-param CSRF protection ourselves. Latest per Maven Central
 # (verified live, not assumed — no release since 2021-12-22, this genuinely is current).
 appauth = "0.11.1"
+# Pdfium binding for PDF chapters (PLAN.md §16) — Android-only, behind the pageProviderFor
+# expect/actual seam (iOS will use PDFKit or Pdfium-via-cinterop at bring-up). Chosen over the
+# KMP ComposePdf/nucleusframework binding, which would force a Kotlin 2.3.20+ toolchain bump
+# (repo is on 2.1.21) and whose wrapper code is unlicensed as of 2026-07. Pinned to the 1.x
+# maintenance line for the same Kotlin reason: 2.0+ is compiled with Kotlin 2.3 (metadata
+# unreadable by our 2.1 compiler); 1.0.35 is that line's latest (still maintained, late 2025).
+pdfiumandroid = "1.0.35"
 
 [libraries]
 # coroutines
@@ -80,6 +87,8 @@ okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidxSecurityCrypto" }
 # OAuth2/PKCE (Android-only — Google Drive sync, PLAN.md §10)
 appauth = { module = "net.openid:appauth", version.ref = "appauth" }
+# Pdfium binding (Android-only — PDF chapters, PLAN.md §16)
+pdfiumandroid = { module = "io.legere:pdfiumandroid", version.ref = "pdfiumandroid" }
 # CMP androidx
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
 androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "androidx-documentfile" }

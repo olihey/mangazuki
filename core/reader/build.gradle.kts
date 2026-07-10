@@ -22,6 +22,11 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        androidMain.dependencies {
+            // PDF chapters (PLAN.md §16) — Android-only Pdfium binding; the iOS actual of
+            // pageProviderFor will use PDFKit or Pdfium-via-cinterop at bring-up instead.
+            implementation(libs.pdfiumandroid)
+        }
     }
 }
 

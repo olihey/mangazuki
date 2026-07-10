@@ -20,9 +20,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -153,6 +157,13 @@ fun MangaShelfGrid(
     val anton = mangaAnton()
     val initialTab = if (startScreen == StartScreen.YOUR_PAGE) LibraryTab.YOUR_PAGE else LibraryTab.LIBRARY
     var activeTab by rememberSaveable(stateSaver = LibraryTabSaver) { mutableStateOf(initialTab) }
+    // Hoisted above the tab switch: the `if (activeTab == ...)` below swaps each tab's whole
+    // subtree out of composition, so a scroll state remembered inside ShelfGrid/YourPageContent
+    // died (reset to top) on every tab change. Held here they outlive the swap -- and being
+    // rememberSaveable-backed, they also survive nav-compose rebuilding this destination on the
+    // way back from a series/reader (the same reason activeTab needs rememberSaveable above).
+    val shelfGridState = rememberLazyGridState()
+    val yourPageListState = rememberLazyListState()
 
     Column(Modifier.fillMaxSize().background(MangaColors.Bg)) {
         ShelfMasthead(
@@ -160,7 +171,7 @@ fun MangaShelfGrid(
             selectionMode, selectedIds.size, onSelectAll, onSelectNone, onMarkRead, onMarkUnread, onExitSelectionMode, archivo, anton,
         )
         if (activeTab == LibraryTab.YOUR_PAGE) {
-            YourPageContent(inProgress, resumeChapters, recentChapters, titleLanguage, onSeriesClick, onChapterClick)
+            YourPageContent(inProgress, resumeChapters, recentChapters, titleLanguage, onSeriesClick, onChapterClick, yourPageListState)
         } else {
             if (needsReGrant) ShelfReGrantBanner(onAddSource, archivo)
             when {
@@ -176,7 +187,7 @@ fun MangaShelfGrid(
                     // cover up by its height the instant a long-press entered selection mode.
                     ShelfToolbar(viewModel, query, sort, ascending, filter, archivo)
                     ShelfHeaderRow(filter, cards.size, archivo, anton)
-                    ShelfGrid(cards, titleLanguage, selectionMode, selectedIds, onSeriesClick, onLongClickSeries, archivo, anton)
+                    ShelfGrid(shelfGridState, cards, titleLanguage, selectionMode, selectedIds, onSeriesClick, onLongClickSeries, archivo, anton)
                 }
             }
         }
@@ -468,6 +479,9 @@ private fun ShelfHeaderRow(filter: LibraryFilter, count: Int, archivo: FontFamil
 
 @Composable
 private fun ShelfGrid(
+    /** Owned by [MangaShelfGrid], not remembered here — this subtree leaves composition on
+     * every tab switch, which would reset a locally-remembered scroll position to the top. */
+    state: LazyGridState,
     cards: List<LibraryCard>,
     titleLanguage: TitleLanguage,
     selectionMode: Boolean,
@@ -478,6 +492,7 @@ private fun ShelfGrid(
     anton: FontFamily,
 ) {
     LazyVerticalGrid(
+        state = state,
         columns = GridCells.Adaptive(150.dp),
         modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
         contentPadding = PaddingValues(top = 10.dp, bottom = 32.dp),

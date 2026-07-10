@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -62,6 +64,9 @@ fun YourPageContent(
     titleLanguage: TitleLanguage,
     onSeriesClick: (String) -> Unit,
     onChapterClick: (seriesId: String, chapterId: String) -> Unit,
+    /** Owned by [MangaShelfGrid] so the scroll position survives switching to the Library tab
+     * and back (this whole subtree leaves composition on a tab switch). */
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val archivo = mangaArchivo()
     val anton = mangaAnton()
@@ -127,7 +132,7 @@ fun YourPageContent(
             return@BoxWithConstraints
         }
 
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)) {
             if (jumpBackIn.isNotEmpty()) {
                 item {
                     YourPageSection(stringResource(Res.string.your_page_jump_back_in_title), stringResource(Res.string.your_page_jump_back_in_subtitle), archivo, anton) {

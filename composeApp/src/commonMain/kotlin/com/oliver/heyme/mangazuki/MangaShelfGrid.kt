@@ -178,29 +178,32 @@ fun MangaShelfGrid(
             YourPageContent(inProgress, favorites, resumeChapters, recentChapters, titleLanguage, onSeriesClick, onChapterClick, yourPageListState)
         } else {
             if (needsReGrant) ShelfReGrantBanner(onAddSource, archivo)
-            when {
-                !canRescan && !needsReGrant -> ShelfEmptyState(stringResource(Res.string.shelf_empty_no_source), archivo) {
+            if (!canRescan && !needsReGrant) {
+                ShelfEmptyState(stringResource(Res.string.shelf_empty_no_source), archivo) {
                     Button(onClick = onAddSource, colors = ButtonDefaults.buttonColors(containerColor = MangaColors.Accent)) {
                         Text(stringResource(Res.string.shelf_add_source), fontFamily = archivo, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
-                // Truly empty library -- nothing scanned yet, and no filter/search is narrowing
-                // anything (SHOW_ALL + blank query), so there's nothing a toolbar could help
-                // the user change. A filter/search that narrows an otherwise-populated library
-                // to zero results is a different case (below) -- it must keep the toolbar
-                // reachable, or the user has no way back to "Show all".
-                cards.isEmpty() && progress == null && query.isBlank() && filter == LibraryFilter.SHOW_ALL && !needsReGrant ->
-                    ShelfEmptyState(stringResource(Res.string.shelf_empty_no_series), archivo)
-                else -> {
-                    // Always rendered, even in selection mode -- hiding it used to shift every
-                    // cover up by its height the instant a long-press entered selection mode.
-                    ShelfToolbar(viewModel, query, sort, ascending, filter, archivo)
-                    ShelfHeaderRow(filter, cards.size, archivo, anton)
-                    if (cards.isEmpty() && progress == null) {
-                        ShelfEmptyState(stringResource(Res.string.shelf_empty_no_matches), archivo, modifier = Modifier.weight(1f).fillMaxWidth())
-                    } else {
+            } else {
+                // Always rendered, even in selection mode or while a filter/search transiently
+                // narrows the list to nothing -- gating this on `cards` (below) used to make it
+                // flicker away for a frame on every filter switch: `cards` is a separately
+                // combine()-derived StateFlow that catches up to a new `filter` value one
+                // recomposition after `filter` itself changes, so there was always a frame where
+                // `filter` already read e.g. SHOW_ALL but `cards` was still the old, empty,
+                // favorites-filtered list.
+                ShelfToolbar(viewModel, query, sort, ascending, filter, archivo)
+                ShelfHeaderRow(filter, cards.size, archivo, anton)
+                when {
+                    cards.isNotEmpty() || progress != null ->
                         ShelfGrid(shelfGridState, cards, titleLanguage, selectionMode, selectedIds, onSeriesClick, onLongClickSeries, archivo, anton)
-                    }
+                    // Truly empty library -- nothing scanned yet, and no filter/search is
+                    // narrowing anything. A filter/search that narrows an otherwise-populated
+                    // library to zero results gets the other message instead.
+                    query.isBlank() && filter == LibraryFilter.SHOW_ALL ->
+                        ShelfEmptyState(stringResource(Res.string.shelf_empty_no_series), archivo, modifier = Modifier.weight(1f).fillMaxWidth())
+                    else ->
+                        ShelfEmptyState(stringResource(Res.string.shelf_empty_no_matches), archivo, modifier = Modifier.weight(1f).fillMaxWidth())
                 }
             }
         }

@@ -868,11 +868,20 @@ when pages merely display:
   both show together on entry and on a center tap, both hide together on the initial auto-hide
   or another center tap. They're shown/hidden as one unit, not independently.
 - **Auto-hide is a one-shot startup timer, not re-armed by manual toggles.** The chrome/system
-  bars auto-hide 5s after the reader opens; a later center tap that re-shows them has no
-  timeout — it stays until tapped again. `LaunchedEffect(Unit)` (not keyed on `showChrome`), so
-  it only ever fires once per reader session, and it waits out an in-progress slider scrub
-  (`snapshotFlow { isScrubbing }.first { !it }`) before hiding rather than yanking it away
-  mid-drag.
+  bars auto-hide 2.5s after the reader opens (halved from 5s, 2026-07-12) for a deliberate open
+  only; a later center tap that re-shows them has no timeout — it stays until tapped again.
+  `LaunchedEffect(Unit)` (not keyed on `showChrome`), so it only ever fires once per reader
+  session, and it waits out an in-progress slider scrub (`snapshotFlow { isScrubbing }.first {
+  !it }`) before hiding rather than yanking it away mid-drag.
+- **Chrome only greets a deliberate open, not an in-reader chapter switch (2026-07-12).**
+  Reported live: the chrome flashed up again every time swiping onto the next-chapter preview
+  advanced past the last page, same as opening the reader fresh — distracting mid-read. The
+  reader route (`App.kt`) gained an optional `?fromSwitch={fromSwitch}` query arg (`NavType
+  .BoolType`, default false): the two "open a chapter" call sites (series screen tap, Your Page
+  card) omit it entirely, while `onNavigateToChapter`'s own re-navigate (the next-chapter-preview
+  swipe) sets it true. `ReaderScreen` takes the inverse as `showChromeInitially`, seeding
+  `showChrome`'s initial value and skipping the auto-hide `LaunchedEffect` entirely when false —
+  there's nothing to hide. Manual center-tap toggling is unaffected either way.
 - **Scrubbable progress slider.** The chrome's progress bar is a `Slider`, not just a display —
   dragging it jumps straight to that page (`onValueChangeFinished` → `pagerState.scrollToPage`)
   for fast navigation through a long chapter.
@@ -1766,6 +1775,44 @@ untouched). `upsertSeries`'s ON CONFLICT leaves the favorite columns alone, so r
 hearts. Settings grows a fourth Cloud-sync switch ("Sync favorites", own last-synced byline,
 `NoOpFavoritesBackend` substitution when off) and the Debug section gains the full
 view/clear/export/import row group for `favorites.json`.
+
+**Fixed: a synced metadata alias never reached this device's own `metadata_alias` table
+(2026-07-12).** Reported live: a series ("Hope Youre Happy Lemon") had a confirmed Fix Metadata
+entry in `metadata_aliases.json` on Drive, yet a fresh scan on a device with an empty local
+library still showed it unmatched (✕, not "?" — enrichment ran and searched fresh rather than
+taking the alias branch). Root cause: unlike favorites/progress, `ProgressSyncCoordinator.sync()`
+computed `aliasWinners` (pull + `resolveAliasWinners`) and used them only to bridge progress
+records *within that one sync pass*, then pushed them back to Drive — it never called anything
+like `repository.recordMetadataAlias` to persist a winner into the local `metadata_alias` SQL
+table. Since `MetadataEnricher.enrichPending` only ever reads local aliases
+(`repository.allMetadataAliases()`), an alias known only remotely (recorded on another device, or
+wiped from this one by a reinstall/reset) could never be auto-applied on a later scan — sync
+would keep re-pulling and re-pushing the same alias forever without it ever taking local effect.
+Fixed by adding `LibraryRepository.applyMetadataAliasIfNewer` (the same read-then-conditional-
+write LWW guard as `applyProgressIfNewer`/`applyFavoriteIfNewer`, backed by a new
+`selectMetadataAliasUpdatedAt` query) and calling it for every alias winner in `sync()`, mirroring
+the favorites-apply loop exactly. A rescan (or the next periodic enrichment pass —
+`selectUnmatchedSeries` only filters on `external_id IS NULL`, so a "✕" series is retried
+automatically, no permanent lockout) now picks up the alias once it's synced down.
+
+**Fixed: sync's per-row transactions made a full-library merge take minutes, silently blocking
+enrichment behind it (2026-07-12).** Reported live: after rescanning a 306-title library, no
+"Fetching metadata…" progress ever appeared. Root cause: `ProgressSyncCoordinator.sync()` applied
+each progress/alias/favorite winner in its *own* `q.transaction { }` — `applyProgressIfNewer` alone
+could mean tens of thousands of chapter-level transactions for a full-library sync, each paying a
+disk fsync on commit; watched live via `adb`, this took several minutes (`reading_progress` row
+count crawling up a handful of rows at a time). Since `MetadataEnricher.enrichPending` shares
+`libraryWriteMutex` with `sync()`, enrichment sat queued the whole time with zero user-visible
+feedback. Fixed by batching: three new plain entry types in `core:domain`
+(`ProgressApplyEntry`/`MetadataAliasApplyEntry`/`FavoriteApplyEntry`) plus
+`LibraryRepository.applyProgressWinners`/`applyMetadataAliasWinners`/`applyFavoriteWinners`, each
+wrapping its *entire* batch in one transaction instead of one per row (same per-row
+read-then-conditional-write LWW guard, just no longer paying a fresh transaction per row).
+`ProgressSyncCoordinator.sync()` now collects all resolved entries per category (still one
+chapter/series-id lookup read per row — that part is cheap and unbatched) and calls each batch
+method once. Verified live: the same 306-title library's full sync (pull, merge, apply, push,
+across progress + aliases + favorites) dropped from several minutes to ~18 seconds
+(`app.lastSyncedAt` landing 18s after launch), and enrichment now starts promptly afterward.
 
 **`progress.json` v2 — one record per series, not per chapter (2026-07-05).** v1 wrote one
 `SyncRecordDto` object per chapter (`provider`/`externalId`/`normalizedTitle`/`volume`/`number`/

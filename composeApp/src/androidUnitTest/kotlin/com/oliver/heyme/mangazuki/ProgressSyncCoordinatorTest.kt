@@ -198,6 +198,32 @@ class ProgressSyncCoordinatorTest {
 
         assertEquals(1, aliasBackend.pushed?.size, "one winner per title, not both conflicting entries")
         assertEquals("ANILIST", aliasBackend.pushed?.single()?.provider, "the newer local fix must survive a stale remote alias")
+        assertEquals(
+            "ANILIST", repo.allMetadataAliases().single().provider,
+            "a stale remote alias must not clobber this device's own newer local fix",
+        )
+    }
+
+    @Test
+    fun a_remote_only_alias_is_persisted_locally_so_a_future_scan_can_use_it_without_syncing_again() = runTest {
+        // Reproduces the bug behind "series X has an alias in metadata_aliases.json but still
+        // shows as unmatched": a series matched on another device (or on this one before a
+        // reinstall wiped local storage) must land in this device's own metadata_alias table via
+        // sync, since MetadataEnricher.enrichPending only ever reads local aliases -- pulling and
+        // using a remote alias just for this pass's progress-bridging isn't enough.
+        val repo = newRepo()
+        repo.persistSeries(unmatchedSeries("s1", "Hope Youre Happy Lemon"), emptyList())
+        assertTrue(repo.allMetadataAliases().isEmpty(), "no local alias before sync")
+
+        val remoteAlias = MetadataAliasRecord(
+            normalizedTitle = "hope youre happy lemon", provider = "ANILIST", externalId = "123456",
+            updatedAt = 1783346440882L, deviceId = "another-device",
+        )
+        ProgressSyncCoordinator(repo, FakeSyncBackend(emptyList()), FakeMetadataAliasBackend(listOf(remoteAlias))).sync()
+
+        val persisted = repo.allMetadataAliases().single()
+        assertEquals("ANILIST", persisted.provider)
+        assertEquals("123456", persisted.externalId)
     }
 
     @Test

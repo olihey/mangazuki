@@ -329,6 +329,12 @@ ON CONFLICT(normalized_old_title) DO UPDATE SET
 selectAllMetadataAliases:
 SELECT normalized_old_title, provider, external_id, updated_at, device_id FROM metadata_alias;
 
+-- Guard read for applyMetadataAliasIfNewer (PLAN.md §10) -- same "newer wins" shape as
+-- selectProgressUpdatedAt/selectFavoriteUpdatedAt, so a synced alias winner from another device
+-- (or from Drive after a local reinstall) never clobbers a fresher local Fix Metadata action.
+selectMetadataAliasUpdatedAt:
+SELECT updated_at FROM metadata_alias WHERE normalized_old_title = ?;
+
 -- Favorites (PLAN.md §10 favorites sync) ------------------------------------
 -- The user's heart toggle. Always a fresh local write (like recordMetadataAlias), so no
 -- "newer wins" guard here -- that guard lives in applyFavoriteIfNewer for synced records.

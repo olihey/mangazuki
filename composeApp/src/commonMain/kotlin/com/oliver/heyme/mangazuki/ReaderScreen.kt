@@ -110,7 +110,15 @@ private enum class TapZone { BACKWARD, FORWARD, MENU }
  * with a scrubbable progress slider, and (paged modes) a next-chapter preview past the last page.
  */
 @Composable
-fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToChapter: (String) -> Unit) {
+fun ReaderScreen(
+    viewModel: ReaderViewModel,
+    onBack: () -> Unit,
+    onNavigateToChapter: (String) -> Unit,
+    // False for an in-reader chapter transition (swiping onto the next-chapter preview) -- the
+    // chrome overlay should only greet a deliberate open (a chapter tap from the series screen
+    // or Your Page), not every chapter switch mid-read.
+    showChromeInitially: Boolean = true,
+) {
     val pageCount by viewModel.pageCount.collectAsState()
     val wideFlags by viewModel.wideFlags.collectAsState()
     val pageAspectRatios by viewModel.pageAspectRatios.collectAsState()
@@ -141,7 +149,7 @@ fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToCha
     // bottom bars (windowInsetsPadding'd for statusBars/navigationBars) already give the back
     // button and scrubber room to sit clear of the display cutout/gesture area, so there's no
     // need to bring the real system bars back just because the chrome is up.
-    var showChrome by remember { mutableStateOf(true) }
+    var showChrome by remember { mutableStateOf(showChromeInitially) }
     ImmersiveMode(enabled = true)
     var isScrubbing by remember { mutableStateOf(false) }
     val showGestureHelp by viewModel.showGestureHelp.collectAsState()
@@ -150,9 +158,11 @@ fun ReaderScreen(viewModel: ReaderViewModel, onBack: () -> Unit, onNavigateToCha
 
     // Auto-hide only the initial chrome shown on opening the reader — a one-shot timer, not
     // re-armed by later manual toggles (center tap shows/hides it with no timeout after
-    // that). Waits out an in-progress scrub rather than yanking the slider mid-drag.
+    // that). Waits out an in-progress scrub rather than yanking the slider mid-drag. Skipped
+    // entirely when there's nothing to hide (an in-reader chapter switch never shows it).
     LaunchedEffect(Unit) {
-        delay(5_000)
+        if (!showChromeInitially) return@LaunchedEffect
+        delay(2_500)
         snapshotFlow { isScrubbing }.first { !it }
         showChrome = false
     }

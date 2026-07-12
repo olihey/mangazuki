@@ -6,9 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -88,18 +90,26 @@ fun App(
                     titleLanguage = titleLanguage,
                 )
             }
-            composable("reader/{seriesId}/{chapterId}") { entry ->
+            composable(
+                route = "reader/{seriesId}/{chapterId}?fromSwitch={fromSwitch}",
+                // fromSwitch distinguishes an in-reader chapter transition (swiping onto the
+                // next-chapter preview) from a deliberate open (a chapter tap from the series
+                // screen or Your Page) -- only the latter shows the chrome overlay on arrival.
+                arguments = listOf(navArgument("fromSwitch") { type = NavType.BoolType; defaultValue = false }),
+            ) { entry ->
                 val seriesId = entry.arguments?.getString("seriesId") ?: return@composable
                 val chapterId = entry.arguments?.getString("chapterId") ?: return@composable
+                val fromChapterSwitch = entry.arguments?.getBoolean("fromSwitch") ?: false
                 ReaderHost(
                     graph, seriesId, chapterId,
+                    showChromeInitially = !fromChapterSwitch,
                     onBack = { navController.popBackStack() },
                     // Swiping past the last page into the next-chapter preview replaces this
                     // back-stack entry, so "back" from the next chapter returns to the series
                     // screen rather than stepping backward chapter by chapter.
                     onNavigateToChapter = { nextChapterId ->
-                        navController.navigate("reader/$seriesId/$nextChapterId") {
-                            popUpTo("reader/$seriesId/$chapterId") { inclusive = true }
+                        navController.navigate("reader/$seriesId/$nextChapterId?fromSwitch=true") {
+                            popUpTo("reader/$seriesId/$chapterId?fromSwitch=$fromChapterSwitch") { inclusive = true }
                         }
                     },
                 )
@@ -113,6 +123,7 @@ private fun ReaderHost(
     graph: AppGraph,
     seriesId: String,
     chapterId: String,
+    showChromeInitially: Boolean,
     onBack: () -> Unit,
     onNavigateToChapter: (String) -> Unit,
 ) {
@@ -133,5 +144,5 @@ private fun ReaderHost(
             pdfCacheDir = graph.pdfCacheDir,
         )
     }
-    ReaderScreen(viewModel, onBack, onNavigateToChapter)
+    ReaderScreen(viewModel, onBack, onNavigateToChapter, showChromeInitially)
 }

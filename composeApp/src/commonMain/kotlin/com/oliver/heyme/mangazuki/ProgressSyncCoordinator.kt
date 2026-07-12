@@ -1,8 +1,11 @@
 package com.oliver.heyme.mangazuki
 
 import com.oliver.heyme.mangazuki.core.data.LibraryRepository
+import com.oliver.heyme.mangazuki.core.domain.FavoriteApplyEntry
 import com.oliver.heyme.mangazuki.core.domain.FavoriteRow
+import com.oliver.heyme.mangazuki.core.domain.MetadataAliasApplyEntry
 import com.oliver.heyme.mangazuki.core.domain.MetadataAliasRow
+import com.oliver.heyme.mangazuki.core.domain.ProgressApplyEntry
 import com.oliver.heyme.mangazuki.core.domain.SyncProgressRow
 import com.oliver.heyme.mangazuki.core.sync.FavoriteRecord
 import com.oliver.heyme.mangazuki.core.sync.FavoritesBackend
@@ -57,6 +60,14 @@ class ProgressSyncCoordinator(
         val localAliases = repository.allMetadataAliases().map { it.toAliasRecord() }
         val remoteAliases = aliasBackend.pullAliases()
         val aliasWinners = resolveAliasWinners(localAliases + remoteAliases)
+        // Persist each winner locally, not just bridge with it below (PLAN.md §10) -- otherwise
+        // an alias only known to another device (or wiped from this one by a reinstall) never
+        // reaches this device's own `metadata_alias` table, so MetadataEnricher.enrichPending's
+        // next pass -- which only ever reads local aliases -- can never auto-apply it. Applied as
+        // one batch/transaction, not one per alias (PLAN.md sync perf, 2026-07-12).
+        repository.applyMetadataAliasWinners(
+            aliasWinners.map { MetadataAliasApplyEntry(it.normalizedTitle, it.provider, it.externalId, it.updatedAt, it.deviceId) },
+        )
 
         val local = repository.allProgressForSync().toSeriesProgressRecords()
         val remote = backend.pull(null)
@@ -68,28 +79,34 @@ class ProgressSyncCoordinator(
         val bridged = (local + remote).map { it.bridgedWith(aliasWinners) }
         val winners = resolveSyncGroups(bridged).map { winner(it) }
 
-        winners.forEach { record ->
-            record.volumes.forEach { volume ->
+        // Resolving each chapter's local id is still one read per volume (unavoidable without a
+        // bigger prefetch redesign), but the writes below are collected and applied as a single
+        // batch/transaction rather than one per chapter -- a full-library sync can touch tens of
+        // thousands of chapters, and a transaction per row was observed live taking several
+        // minutes just from the disk fsync each one pays (PLAN.md sync perf, 2026-07-12).
+        val progressEntries = winners.flatMap { record ->
+            record.volumes.mapNotNull { volume ->
                 // A chapter this device hasn't scanned yet (the file lives only on another
                 // device) is simply skipped here -- it still round-trips through push() below
                 // untouched, so a later device with that file can still apply it.
                 val chapterId = repository.resolveLocalChapterId(
                     record.key.provider, record.key.externalId, record.key.normalizedTitle,
                     volume.volume, volume.number,
-                ) ?: return@forEach
+                ) ?: return@mapNotNull null
                 // This device doesn't necessarily know the chapter's real page count at merge
                 // time (it may not have opened it yet) -- Int.MAX_VALUE is a safe "fully read"
                 // sentinel, since every reader/UI read of lastPageIndex already clamps to the
                 // chapter's own actual page count (ReaderScreen's pager, SeriesScreen's percent
                 // ring) rather than trusting it as an absolute index. Each entry's OWN updatedAt
-                // is passed through here (not some series-wide aggregate) -- applyProgressIfNewer
+                // is passed through here (not some series-wide aggregate) -- applyProgressWinners
                 // uses it as that chapter's new local timestamp, and an inflated one would make a
                 // chapter this sync didn't actually touch look fresher than it really is on the
                 // next merge.
                 val lastPageIndex = if (volume.completed) Int.MAX_VALUE else volume.lastPageIndex
-                repository.applyProgressIfNewer(chapterId, lastPageIndex, volume.completed, volume.updatedAt, "")
+                ProgressApplyEntry(chapterId, lastPageIndex, volume.completed, volume.updatedAt)
             }
         }
+        repository.applyProgressWinners(progressEntries)
 
         // Favorites (PLAN.md §10) -- structurally the alias half again: per-series records,
         // plain title-keyed LWW merge, apply locally where the series exists, push the full
@@ -98,11 +115,15 @@ class ProgressSyncCoordinator(
         val localFavorites = repository.allFavoritesForSync().map { it.toFavoriteRecord() }
         val remoteFavorites = favoritesBackend.pullFavorites()
         val favoriteWinners = resolveFavoriteWinners(localFavorites + remoteFavorites)
-        favoriteWinners.forEach { record ->
+        // Resolving each series' local id is still one read per winner, but the writes are
+        // applied as a single batch/transaction, not one per series (PLAN.md sync perf,
+        // 2026-07-12), same reasoning as the progress/alias batches above.
+        val favoriteEntries = favoriteWinners.mapNotNull { record ->
             val seriesId = repository.resolveLocalSeriesId(record.provider, record.externalId, record.normalizedTitle)
-                ?: return@forEach
-            repository.applyFavoriteIfNewer(seriesId, record.favorited, record.updatedAt, record.deviceId)
+                ?: return@mapNotNull null
+            FavoriteApplyEntry(seriesId, record.favorited, record.updatedAt, record.deviceId)
         }
+        repository.applyFavoriteWinners(favoriteEntries)
 
         backend.push(winners)
         aliasBackend.pushAliases(aliasWinners)

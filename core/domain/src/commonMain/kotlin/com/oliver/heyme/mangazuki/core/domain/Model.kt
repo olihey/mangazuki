@@ -120,3 +120,30 @@ data class FavoriteRow(
     val updatedAt: Long,
     val deviceId: String?,
 )
+
+// Apply-side twins of SyncProgressRow/MetadataAliasRow/FavoriteRow (PLAN.md sync perf,
+// 2026-07-12) -- LibraryRepository's applyProgressWinners/applyMetadataAliasWinners/
+// applyFavoriteWinners each take a whole batch of these in one transaction rather than one
+// per row, so a full-library sync (tens of thousands of chapters) pays one disk fsync for the
+// whole pass instead of one per row.
+data class ProgressApplyEntry(
+    val chapterId: String,
+    val lastPageIndex: Int,
+    val completed: Boolean,
+    val updatedAt: Long,
+)
+
+data class MetadataAliasApplyEntry(
+    val normalizedOldTitle: String,
+    val provider: String,
+    val externalId: String,
+    val updatedAt: Long,
+    val deviceId: String,
+)
+
+data class FavoriteApplyEntry(
+    val seriesId: String,
+    val favorited: Boolean,
+    val updatedAt: Long,
+    val deviceId: String,
+)

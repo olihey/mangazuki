@@ -14,7 +14,7 @@
         android:supportsRtl="true"
         android:largeHeap="true"
         android:localeConfig="@xml/locales_config"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
             android:name=".MainActivity"
             android:exported="true"

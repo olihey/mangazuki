@@ -12,6 +12,9 @@ import com.oliver.heyme.mangazuki.core.domain.nowEpochMillis
 import com.oliver.heyme.mangazuki.core.domain.SyncProgressRow
 import com.oliver.heyme.mangazuki.core.domain.MetadataAliasRow
 import com.oliver.heyme.mangazuki.core.domain.FavoriteRow
+import com.oliver.heyme.mangazuki.core.domain.ProgressApplyEntry
+import com.oliver.heyme.mangazuki.core.domain.MetadataAliasApplyEntry
+import com.oliver.heyme.mangazuki.core.domain.FavoriteApplyEntry
 import com.oliver.heyme.mangazuki.core.metadata.RemoteWorkDetails
 import com.oliver.heyme.mangazuki.core.data.db.Series as SeriesRow
 import kotlinx.coroutines.flow.Flow
@@ -198,22 +201,27 @@ class LibraryRepository(db: MangaDatabase) {
     }
 
     /**
-     * Applies a synced winner (PLAN.md §10) unless the local row is already at least as new --
-     * a stale remote record must never clobber a fresher local write. Done as a Kotlin-side
-     * read-then-conditional-write inside one transaction, rather than a SQL `WHERE` clause on
-     * `DO UPDATE`: that syntax needs SQLite 3.35+, not guaranteed at this project's minSdk 26
-     * (`core/data/build.gradle.kts` pins SQLDelight's dialect to 3.24, and there's no bundled
-     * modern-SQLite dependency to guarantee a newer runtime version).
+     * Applies every synced progress winner (PLAN.md §10) in one transaction, not one per chapter
+     * (PLAN.md sync perf, 2026-07-12) -- a full-library sync can touch tens of thousands of
+     * chapters, and a transaction per row means a disk fsync per row; observed live taking
+     * several minutes for a 306-series library. Each row still gets its own Kotlin-side
+     * read-then-conditional-write guard -- a stale remote record must never clobber a fresher
+     * local write -- rather than a SQL `WHERE` clause on `DO UPDATE`: that syntax needs SQLite
+     * 3.35+, not guaranteed at this project's minSdk 26 (`core/data/build.gradle.kts` pins
+     * SQLDelight's dialect to 3.24, and there's no bundled modern-SQLite dependency to guarantee
+     * a newer runtime version). `deviceId` is always "" here (progress sync never recorded a
+     * real one, same as before this batching).
      */
-    suspend fun applyProgressIfNewer(chapterId: String, lastPageIndex: Int, completed: Boolean, updatedAt: Long, deviceId: String) =
-        withContext(ioDispatcher) {
-            q.transaction {
-                val currentUpdatedAt = q.selectProgressUpdatedAt(chapterId).executeAsOneOrNull()
-                if (currentUpdatedAt == null || updatedAt > currentUpdatedAt) {
-                    q.upsertProgress(chapterId, lastPageIndex.toLong(), if (completed) 1 else 0, updatedAt, deviceId)
+    suspend fun applyProgressWinners(entries: List<ProgressApplyEntry>) = withContext(ioDispatcher) {
+        q.transaction {
+            entries.forEach { e ->
+                val currentUpdatedAt = q.selectProgressUpdatedAt(e.chapterId).executeAsOneOrNull()
+                if (currentUpdatedAt == null || e.updatedAt > currentUpdatedAt) {
+                    q.upsertProgress(e.chapterId, e.lastPageIndex.toLong(), if (e.completed) 1 else 0, e.updatedAt, "")
                 }
             }
         }
+    }
 
     /** Every chapter this device has any reading progress for, with its sync identity attached
      * (PLAN.md §10) — the local half of a merge pass. */
@@ -240,6 +248,25 @@ class LibraryRepository(db: MangaDatabase) {
         withContext(ioDispatcher) {
             q.upsertMetadataAlias(normalizedOldTitle, provider, externalId, nowEpochMillis(), deviceId)
         }
+
+    /** Applies every synced alias winner (PLAN.md §10) in one transaction, not one per alias
+     * (PLAN.md sync perf, 2026-07-12) -- same batching reasoning as [applyProgressWinners].
+     * Same read-then-conditional-write guard as [applyProgressWinners]/[applyFavoriteWinners],
+     * and for the same reason this was missing entirely until 2026-07-12: without it, an alias
+     * recorded on another device (or on this device before a reinstall) could never reach this
+     * device's own `metadata_alias` table, since [recordMetadataAlias] only ever fires from a
+     * fresh local Fix Metadata action here — sync alone was pulling remote aliases only far
+     * enough to bridge progress records in the same pass, never far enough to persist them. */
+    suspend fun applyMetadataAliasWinners(entries: List<MetadataAliasApplyEntry>) = withContext(ioDispatcher) {
+        q.transaction {
+            entries.forEach { e ->
+                val currentUpdatedAt = q.selectMetadataAliasUpdatedAt(e.normalizedOldTitle).executeAsOneOrNull()
+                if (currentUpdatedAt == null || e.updatedAt > currentUpdatedAt) {
+                    q.upsertMetadataAlias(e.normalizedOldTitle, e.provider, e.externalId, e.updatedAt, e.deviceId)
+                }
+            }
+        }
+    }
 
     /** Every Fix Metadata action this device has recorded (PLAN.md §10) — the local half of an
      * alias sync pass. */
@@ -288,17 +315,19 @@ class LibraryRepository(db: MangaDatabase) {
             q.selectSeriesIdByTitleKey(normalizedTitle).executeAsOneOrNull()
         }
 
-    /** Applies a synced favorite winner unless the local state is already at least as new —
-     * same read-then-conditional-write-in-a-transaction reasoning as [applyProgressIfNewer]. */
-    suspend fun applyFavoriteIfNewer(seriesId: String, favorited: Boolean, updatedAt: Long, deviceId: String) =
-        withContext(ioDispatcher) {
-            q.transaction {
-                val currentUpdatedAt = q.selectFavoriteUpdatedAt(seriesId).executeAsOneOrNull()?.favorite_updated_at
-                if (currentUpdatedAt == null || updatedAt > currentUpdatedAt) {
-                    q.setFavorite(if (favorited) 1 else 0, updatedAt, deviceId, seriesId)
+    /** Applies every synced favorite winner in one transaction, not one per series (PLAN.md sync
+     * perf, 2026-07-12) -- same batching reasoning as [applyProgressWinners]. Same
+     * read-then-conditional-write guard as [applyProgressWinners]. */
+    suspend fun applyFavoriteWinners(entries: List<FavoriteApplyEntry>) = withContext(ioDispatcher) {
+        q.transaction {
+            entries.forEach { e ->
+                val currentUpdatedAt = q.selectFavoriteUpdatedAt(e.seriesId).executeAsOneOrNull()?.favorite_updated_at
+                if (currentUpdatedAt == null || e.updatedAt > currentUpdatedAt) {
+                    q.setFavorite(if (e.favorited) 1 else 0, e.updatedAt, e.deviceId, e.seriesId)
                 }
             }
         }
+    }
 
     /** Persist the granted library root so it's remembered across restarts (PLAN.md §5 source table). */
     suspend fun saveLocalRoot(rootLocator: String, displayName: String) = withContext(ioDispatcher) {

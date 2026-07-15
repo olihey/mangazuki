@@ -2121,6 +2121,15 @@ No DB migration (`format` is `TEXT`) — that part held. No source changes — t
   the old solid-color background + raster-foreground split (the new artwork is one flat
   full-bleed image, not a layered design, so a raster background with an empty foreground is the
   simpler fit than inventing an artificial safe-zone inset).
+- **Removed the white corner triangle (2026-07-15).** The source artwork had a folded-corner
+  triangle baked into its top-right corner; requested removed from every icon. Auto-detected the
+  triangle per file (flood-fill from a top-right seed pixel over near-white pixels, deliberately
+  distinct from the "YD" lettering, which is also near-white but spatially disconnected) rather
+  than hand-picking crop boxes per density, then filled it with a feathered horizontal mirror
+  (the top-left corner is plain vignette/dot-pattern background, so this keeps the texture
+  instead of a flat patch) — applied to `docs/app-icon-source.png` and all 15 generated
+  `ic_launcher(_round/_background).png` files across the five densities. Verified live: the
+  launcher icon in the device's app drawer shows the clean ring with no corner cut.
 
 No open decisions remain. The plan is build-ready for Phase 0 on Android.
 

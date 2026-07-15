@@ -1674,6 +1674,17 @@ convergence check that marking a chapter read on one shows read on the other aft
   the job being silently rescheduled. Sign-in sync and the debounced per-change sync above are
   unaffected, since both only run while the app is already open.
 
+**"Sync all now" manual trigger (2026-07-15).** A link in Settings' Cloud sync section, right
+above "Sign out", running the exact same pull/merge/apply/push pass as `requestSync`'s debounced
+call but immediately rather than after 5s, with a small spinner ("Syncing…") while it's in flight.
+`AppGraph.syncNow` wraps `MainActivity`'s existing `runSyncIfEnabled` (the same guarded call
+`onStart`/`ProgressSyncScheduler` already use) as a plain suspend callback — no new sync logic,
+just an unbounced entry point into the existing one. Deliberately still respects every existing
+guard: a no-op if signed out or the master "Sync reading progress" toggle is off, and each
+category (progress/aliases/favorites) only actually syncs if its own toggle is on, same as every
+other trigger. This is a manual "sync what's enabled, right now" action, not a way to force a
+sync of something the user has turned off.
+
 **Metadata-alias sync — a second Drive file feeding back into progress sync (2026-07-05).**
 Every manual Fix Metadata action now records a *metadata alias*: the series' raw scanned title
 exactly as it stood right before the fix, paired with the (provider, externalId) the user

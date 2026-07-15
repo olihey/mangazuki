@@ -212,6 +212,8 @@
     <string name="settings_sync_background_subtitle">Off: only syncs while the app is open — no scheduled battery/network use</string>
     <string name="settings_sync_last_synced">Last synced %1$s</string>
     <string name="settings_sync_not_synced_yet">Not synced yet</string>
+    <string name="settings_sync_all_action">Sync all now</string>
+    <string name="settings_sync_all_syncing">Syncing…</string>
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_section_debug">Debug</string>
     <string name="settings_section_debug_desc">Inspect, clear, export, or import the raw files this device syncs through Google Drive.</string>

@@ -55,6 +55,7 @@ fun App(
                     syncState = graph.syncState,
                     onSignIn = onSignIn,
                     onSignOut = onSignOut,
+                    syncNow = graph.syncNow,
                     onBackgroundSyncEnabledChanged = graph.onBackgroundSyncEnabledChanged,
                     fetchProgressJson = graph.fetchProgressJson,
                     fetchMetadataAliasesJson = graph.fetchMetadataAliasesJson,

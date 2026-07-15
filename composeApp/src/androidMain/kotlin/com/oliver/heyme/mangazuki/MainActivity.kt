@@ -142,6 +142,7 @@ class MainActivity : ComponentActivity() {
             repository, source, viewModel, readerPrefs, appPrefs,
             metadataProviders, enricher, coverClient, coversDir, pdfCacheDir, syncState,
             requestSync = syncScheduler::requestSync,
+            syncNow = { runSyncIfEnabled(appPrefs, authManager, repository) },
             onBackgroundSyncEnabledChanged = { enabled ->
                 appPrefs.setBackgroundSyncEnabled(enabled)
                 if (enabled) scheduleBackgroundSync() else cancelBackgroundSync()

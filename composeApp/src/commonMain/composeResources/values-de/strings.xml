@@ -212,6 +212,8 @@
     <string name="settings_sync_background_subtitle">Aus: synchronisiert nur, während die App geöffnet ist — keine geplante Akku-/Netzwerknutzung</string>
     <string name="settings_sync_last_synced">Zuletzt synchronisiert: %1$s</string>
     <string name="settings_sync_not_synced_yet">Noch nicht synchronisiert</string>
+    <string name="settings_sync_all_action">Jetzt alles synchronisieren</string>
+    <string name="settings_sync_all_syncing">Synchronisiere…</string>
     <string name="settings_sign_out">Abmelden</string>
     <string name="settings_section_debug">Debug</string>
     <string name="settings_section_debug_desc">Die Rohdateien einsehen, löschen, exportieren oder importieren, die dieses Gerät über Google Drive synchronisiert.</string>

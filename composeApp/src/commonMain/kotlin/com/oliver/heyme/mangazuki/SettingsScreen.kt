@@ -122,6 +122,7 @@ fun SettingsScreen(
     syncState: StateFlow<SyncState> = MutableStateFlow(SyncState.SignedOut),
     onSignIn: () -> Unit = {},
     onSignOut: () -> Unit = {},
+    syncNow: suspend () -> Unit = {},
     onBackgroundSyncEnabledChanged: (Boolean) -> Unit = {},
     fetchProgressJson: suspend () -> String? = { null },
     fetchMetadataAliasesJson: suspend () -> String? = { null },
@@ -149,6 +150,7 @@ fun SettingsScreen(
     var clearTarget by remember { mutableStateOf<DebugFile?>(null) }
     var importTarget by remember { mutableStateOf<PendingImport?>(null) }
     var importError by remember { mutableStateOf<String?>(null) }
+    var syncingNow by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val titleLanguage by appPreferences.titleLanguage.collectAsState()
     val startScreen by appPreferences.startScreen.collectAsState()
@@ -257,7 +259,29 @@ fun SettingsScreen(
                                     checked = backgroundSyncEnabled, archivo, onCheckedChange = onBackgroundSyncEnabledChanged,
                                 )
                             }
-                            SettingsLink(stringResource(Res.string.settings_sign_out), archivo, onClick = onSignOut, modifier = Modifier.padding(top = 20.dp))
+                            // Manual trigger for the same pull/merge/apply/push pass requestSync's
+                            // debounce eventually runs anyway -- useful right after changing a
+                            // toggle above, or just to confirm sync still works. Disabled (not
+                            // hidden) while a pass is already running, since tapping again
+                            // wouldn't do anything but queue up behind libraryWriteMutex.
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(top = 20.dp).clickable(enabled = !syncingNow) {
+                                    syncingNow = true
+                                    coroutineScope.launch {
+                                        syncNow()
+                                        syncingNow = false
+                                    }
+                                },
+                            ) {
+                                if (syncingNow) CircularProgressIndicator(Modifier.size(14.dp), color = MangaColors.Accent, strokeWidth = 2.dp)
+                                Text(
+                                    stringResource(if (syncingNow) Res.string.settings_sync_all_syncing else Res.string.settings_sync_all_action),
+                                    color = MangaColors.Accent, fontFamily = archivo, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
+                                )
+                            }
+                            SettingsLink(stringResource(Res.string.settings_sign_out), archivo, onClick = onSignOut, modifier = Modifier.padding(top = 14.dp))
                         }
                         is SyncState.Error -> {
                             Text(

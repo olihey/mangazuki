@@ -29,6 +29,13 @@ class AppGraph(
      * run. Backed by a [ProgressSyncScheduler] built in `MainActivity` -- a plain callback, not a
      * stored dependency, for the same reason [syncState]'s own actions are callbacks. */
     val requestSync: () -> Unit = {},
+    /** Settings' "Sync all now" action (PLAN.md §10) -- runs the same pull/merge/apply/push pass
+     * as [requestSync] but immediately, not after its 5s debounce, and reports completion so the
+     * button can show a spinner meanwhile. Still a no-op if signed out or the master "Sync
+     * reading progress" toggle is off, same guard `requestSync`'s debounced call ends up behind
+     * -- this is a manual trigger for an already-configured sync, not a way to force one that's
+     * been turned off. A callback for the same Android-only reason [requestSync] is. */
+    val syncNow: suspend () -> Unit = {},
     /** Settings' "Sync in background" sub-toggle (PLAN.md §10) -- persists
      * [AppPreferences.setBackgroundSyncEnabled] *and* (de)schedules the actual WorkManager job,
      * since a merely-persisted flag wouldn't stop the OS from waking the process up on schedule.

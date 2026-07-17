@@ -80,6 +80,7 @@ fun LibraryScreen(
     val recentChapters by viewModel.recentChapters.collectAsState()
     val selectionMode by viewModel.selectionMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
+    val hasLibraryContent by viewModel.hasLibraryContent.collectAsState()
 
     var showAddSourceChooser by remember { mutableStateOf(false) }
     var showSmbDialog by remember { mutableStateOf(false) }
@@ -137,6 +138,7 @@ fun LibraryScreen(
         favorites = favorites,
         resumeChapters = resumeChapters,
         recentChapters = recentChapters,
+        hasLibraryContent = hasLibraryContent,
         titleLanguage = titleLanguage,
         selectionMode = selectionMode,
         selectedIds = selectedIds,

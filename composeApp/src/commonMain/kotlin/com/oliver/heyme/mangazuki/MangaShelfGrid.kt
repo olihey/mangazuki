@@ -130,6 +130,7 @@ fun MangaShelfGrid(
     favorites: List<LibraryCard>,
     resumeChapters: Map<String, ChapterCard>,
     recentChapters: List<RecentChapterCard>,
+    hasLibraryContent: Boolean,
     titleLanguage: TitleLanguage,
     selectionMode: Boolean,
     selectedIds: Set<String>,
@@ -165,7 +166,7 @@ fun MangaShelfGrid(
     Column(Modifier.fillMaxSize().background(MangaColors.Bg)) {
         ShelfMasthead(
             progress, enrichProgress, canRescan, onRescan = viewModel::rescan, onSettingsClick, activeTab,
-            onTabChange = viewModel::setActiveTab,
+            onTabChange = viewModel::setActiveTab, hasLibraryContent = hasLibraryContent,
             selectionMode, selectedIds.size, onSelectAll, onSelectNone, onMarkRead, onMarkUnread, onExitSelectionMode, archivo, anton,
         )
         if (activeTab == StartScreen.YOUR_PAGE) {
@@ -213,6 +214,7 @@ private fun ShelfMasthead(
     onSettingsClick: () -> Unit,
     activeTab: StartScreen,
     onTabChange: (StartScreen) -> Unit,
+    hasLibraryContent: Boolean,
     selectionMode: Boolean,
     selectedCount: Int,
     onSelectAll: () -> Unit,
@@ -236,7 +238,7 @@ private fun ShelfMasthead(
         // invisibly, pins this Box to its height regardless of which branch is actually showing;
         // a Box reports the max size of all its children even when one of them is alpha-0'd out.
         Box(contentAlignment = Alignment.CenterStart) {
-            MastheadTitleBlock(activeTab, onTabChange = {}, archivo, anton, modifier = Modifier.alpha(0f))
+            MastheadTitleBlock(activeTab, hasLibraryContent, onTabChange = {}, archivo, anton, modifier = Modifier.alpha(0f))
             when {
                 // Selection mode wins over an in-flight scan/enrich pass, which can legitimately
                 // keep running quietly in the background while the user is selecting -- there's
@@ -261,7 +263,7 @@ private fun ShelfMasthead(
                     stringResource(Res.string.masthead_fetch_progress, enrichProgress.done, enrichProgress.total),
                     archivo, anton,
                 )
-                else -> MastheadTitleBlock(activeTab, onTabChange, archivo, anton)
+                else -> MastheadTitleBlock(activeTab, hasLibraryContent, onTabChange, archivo, anton)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -287,7 +289,14 @@ private fun ShelfMasthead(
 }
 
 @Composable
-private fun MastheadTitleBlock(activeTab: StartScreen, onTabChange: (StartScreen) -> Unit, archivo: FontFamily, anton: FontFamily, modifier: Modifier = Modifier) {
+private fun MastheadTitleBlock(
+    activeTab: StartScreen,
+    hasLibraryContent: Boolean,
+    onTabChange: (StartScreen) -> Unit,
+    archivo: FontFamily,
+    anton: FontFamily,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier) {
         Text(
             "YOMIDOJO", color = MangaColors.Accent, fontFamily = archivo, fontWeight = FontWeight.SemiBold,
@@ -295,7 +304,9 @@ private fun MastheadTitleBlock(activeTab: StartScreen, onTabChange: (StartScreen
         )
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 4.dp)) {
             MastheadTab(stringResource(Res.string.tab_library), active = activeTab == StartScreen.LIBRARY, onClick = { onTabChange(StartScreen.LIBRARY) }, anton)
-            MastheadTab(stringResource(Res.string.tab_your_page), active = activeTab == StartScreen.YOUR_PAGE, onClick = { onTabChange(StartScreen.YOUR_PAGE) }, anton)
+            if (hasLibraryContent) {
+                MastheadTab(stringResource(Res.string.tab_your_page), active = activeTab == StartScreen.YOUR_PAGE, onClick = { onTabChange(StartScreen.YOUR_PAGE) }, anton)
+            }
         }
     }
 }

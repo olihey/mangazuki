@@ -129,6 +129,11 @@ class LibraryViewModel(
     private val allCards: StateFlow<List<LibraryCard>> =
         repository.observeLibrary().stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Unfiltered "does the library contain any series at all?" gate for UI that should ignore
+     * transient search/filter emptiness (e.g. hiding the Your Page tab only after a real reset). */
+    val hasLibraryContent: StateFlow<Boolean> =
+        allCards.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), false)
+
     private data class FilterInputs(
         val cards: List<LibraryCard>,
         val query: String,
@@ -223,6 +228,13 @@ class LibraryViewModel(
                 _resumeChapters.value = list.take(JUMP_BACK_IN_COUNT)
                     .mapNotNull { card -> repository.nextUnreadChapter(card.id)?.let { card.id to it } }
                     .toMap()
+            }
+        }
+        scope.launch {
+            hasLibraryContent.collect { hasContent ->
+                if (!hasContent && activeTab.value == StartScreen.YOUR_PAGE) {
+                    activeTab.value = StartScreen.LIBRARY
+                }
             }
         }
     }
